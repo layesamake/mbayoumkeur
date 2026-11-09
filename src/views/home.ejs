@@ -1,0 +1,18 @@
+<%- include('_head') %>
+<section class="bg-gradient-to-br from-leaf-100 to-leaf-50"><div class="max-w-6xl mx-auto px-4 py-16 md:py-24 text-center">
+  <p class="text-leaf-700 font-medium">Plantes, herbes aromatiques, arbres fruitiers et fleurs</p>
+  <h1 class="text-4xl md:text-6xl font-bold text-leaf-900 mt-3">La touche de verdure<br>de votre maison</h1>
+  <p class="mt-5 text-lg max-w-2xl mx-auto text-slate-600">Composez votre sélection, puis envoyez votre commande en un clic par WhatsApp. Pas de paiement en ligne : on confirme ensemble.</p>
+  <a href="/boutique" class="inline-block mt-8 bg-leaf-600 hover:bg-leaf-700 text-white px-8 py-3 rounded-full font-medium transition">Découvrir la boutique</a>
+</div></section>
+<section class="max-w-6xl mx-auto px-4 mt-14"><h2 class="text-2xl font-bold text-leaf-900 mb-6">Nos univers</h2>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+<% featured.forEach(c => { %>
+<a href="/boutique?categorie=<%= encodeURIComponent(c.name) %>" class="relative rounded-2xl overflow-hidden aspect-[4/3] group bg-leaf-600">
+  <% if (c.sample && c.sample.image) { %><img loading="lazy" src="<%= c.sample.image %>" alt="" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"><% } %>
+  <div class="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+  <div class="absolute bottom-3 left-4 text-white"><p class="font-semibold text-lg"><%= c.name %></p><p class="text-xs opacity-80"><%= c.count %> produits</p></div>
+</a><% }) %></div></section>
+<section class="max-w-6xl mx-auto px-4 mt-14"><h2 class="text-2xl font-bold text-leaf-900 mb-6">Nouveautés</h2>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4"><% latest.forEach(p => { %><%- include('_card', {p}) %><% }) %></div></section>
+<%- include('_foot') %>

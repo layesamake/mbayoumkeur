@@ -1,0 +1,13 @@
+<div class="group rounded-xl overflow-hidden border hover:shadow-lg transition bg-white flex flex-col <%= p.available ? '' : 'opacity-60' %>">
+  <a href="/produit/<%= encodeURIComponent(p.slug) %>" class="block">
+    <div class="aspect-square bg-leaf-50 overflow-hidden flex items-center justify-center text-5xl">
+      <% if (p.image) { %><img loading="lazy" src="<%= p.image %>" alt="<%= p.name %>" class="w-full h-full object-cover group-hover:scale-105 transition duration-300"><% } else { %>🪴<% } %>
+    </div>
+    <div class="p-3 pb-1"><p class="text-xs text-leaf-600"><%= p.category %></p><h3 class="font-medium leading-tight mt-0.5"><%= p.name %></h3>
+    <p class="text-sm mt-1 text-slate-600"><%= p.price ? fcfa(p.price) + (p.unit ? ' / ' + p.unit : '') : 'Prix sur demande' %></p></div>
+  </a>
+  <div class="p-3 pt-2 mt-auto">
+    <% if (p.available) { %><button type="button" data-add data-slug="<%= p.slug %>" data-name="<%= p.name %>" data-price="<%= p.price %>" data-unit="<%= p.unit %>" class="w-full text-sm border border-leaf-600 text-leaf-700 hover:bg-leaf-600 hover:text-white rounded-full py-1.5 transition">+ Ajouter à ma sélection</button>
+    <% } else { %><p class="text-center text-sm text-slate-500 py-1.5">Indisponible</p><% } %>
+  </div>
+</div>

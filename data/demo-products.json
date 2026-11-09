@@ -1,0 +1,17 @@
+[
+  { "name": "Menthe marocaine", "category": "Herbes aromatiques", "description": "Pour le thé et la cuisine, en pot.", "unit": "pot" },
+  { "name": "Basilic", "category": "Herbes aromatiques", "description": "Feuilles parfumées, à placer au soleil.", "unit": "pot" },
+  { "name": "Persil frisé", "category": "Herbes aromatiques", "description": "Persil frais toute l’année.", "unit": "pot" },
+  { "name": "Fraisier", "category": "Plantes comestibles", "description": "Plants à repiquer pour le potager ou la jardinière.", "unit": "lot" },
+  { "name": "Piment", "category": "Plantes comestibles", "description": "Plants de piment à repiquer.", "unit": "lot" },
+  { "name": "Tomate cerise", "category": "Plantes comestibles", "description": "Mottes prêtes à repiquer.", "unit": "lot" },
+  { "name": "Manguier greffé", "category": "Arbres fruitiers", "description": "Jeune plant greffé de pépinière.", "unit": "plant" },
+  { "name": "Citronnier", "category": "Arbres fruitiers", "description": "Plant en pot, fructification précoce.", "unit": "plant" },
+  { "name": "Bananier", "category": "Arbres fruitiers", "description": "Croissance rapide, feuillage tropical.", "unit": "plant" },
+  { "name": "Terreau universel 20 L", "category": "Terreaux et substrat", "description": "Pour toutes vos plantations en pot ou en pleine terre.", "unit": "sac" },
+  { "name": "Terreau plantes d’intérieur 10 L", "category": "Terreaux et substrat", "description": "Léger et drainant, adapté aux plantes vertes.", "unit": "sac" },
+  { "name": "Substrat pour semis 5 L", "category": "Terreaux et substrat", "description": "Fin et riche pour réussir vos semis.", "unit": "sac" },
+  { "name": "Arrosoir 5 L", "category": "Accessoires de jardinage", "description": "Arrosoir avec pomme amovible.", "unit": "pièce" },
+  { "name": "Sécateur", "category": "Accessoires de jardinage", "description": "Lames en acier pour une coupe nette.", "unit": "pièce" },
+  { "name": "Gants de jardinage", "category": "Accessoires de jardinage", "description": "Résistants et confortables.", "unit": "paire" }
+]

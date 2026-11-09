@@ -1,0 +1,7 @@
+<%- include('_head', {title:'Contact'}) %>
+<div class="max-w-xl mx-auto px-4 mt-12"><h1 class="text-3xl font-bold text-leaf-900">Nous contacter</h1>
+<form class="mt-6 space-y-4" onsubmit="event.preventDefault();this.querySelector('p').hidden=false">
+<input required placeholder="Nom" class="w-full border rounded-lg px-4 py-2"><input required type="email" placeholder="Email" class="w-full border rounded-lg px-4 py-2">
+<textarea required rows="5" placeholder="Message" class="w-full border rounded-lg px-4 py-2"></textarea>
+<button class="bg-leaf-600 hover:bg-leaf-700 text-white px-6 py-2.5 rounded-full">Envoyer</button><p hidden class="text-leaf-700">Formulaire de démonstration : rien n’est envoyé.</p></form></div>
+<%- include('_foot') %>

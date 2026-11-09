@@ -1,0 +1,16 @@
+<%- include('_head', {title:'Ma sélection'}) %>
+<div class="max-w-3xl mx-auto px-4 mt-10">
+<h1 class="text-3xl font-bold text-leaf-900">Ma sélection</h1>
+<p class="text-slate-500 mt-1">Vérifiez vos articles, puis envoyez la commande par WhatsApp.</p>
+<div id="cart-empty" class="py-16 text-center text-slate-500" hidden>Votre sélection est vide. <a href="/boutique" class="text-leaf-600 underline">Voir la boutique</a></div>
+<ul id="cart-list" class="mt-6 divide-y"></ul>
+<div id="cart-footer" class="mt-6" hidden>
+  <p class="text-right text-lg">Total estimé : <strong id="cart-total"></strong></p>
+  <p class="text-right text-xs text-slate-500">Les articles « prix sur demande » sont confirmés par WhatsApp.</p>
+  <label class="block mt-5 text-sm font-medium">Votre nom <input id="cust-name" class="mt-1 w-full border rounded-lg px-4 py-2 font-normal"></label>
+  <label class="block mt-3 text-sm font-medium">Adresse / quartier de livraison <input id="cust-addr" class="mt-1 w-full border rounded-lg px-4 py-2 font-normal"></label>
+  <a id="wa-send" href="#" target="_blank" rel="noopener" class="mt-6 block text-center bg-[#25D366] hover:brightness-95 text-white font-semibold py-3 rounded-full">Commander par WhatsApp</a>
+  <p id="wa-missing" class="mt-3 text-sm text-red-600" hidden>Numéro WhatsApp non configuré (variable WHATSAPP_NUMBER).</p>
+  <button id="cart-clear" class="mt-4 text-sm text-slate-500 underline mx-auto block">Vider ma sélection</button>
+</div></div>
+<%- include('_foot') %>
