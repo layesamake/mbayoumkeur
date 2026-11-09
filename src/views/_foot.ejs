@@ -3,7 +3,7 @@
 <div class="max-w-6xl mx-auto px-4 py-8 text-sm grid gap-5 sm:grid-cols-3">
 <p><strong class="text-white"><%= siteName %></strong><br>Choisissez vos articles et commandez directement par WhatsApp.</p>
 <% shops.forEach(s => { %><p><strong class="text-white"><%= s.name %></strong><br><a class="inline-block py-1 hover:underline" href="tel:+<%= s.number %>"><%= s.display %></a></p><% }) %>
-<p class="sm:col-span-3"><a class="inline-flex items-center gap-2 py-1 hover:underline" href="<%= instagram %>" target="_blank" rel="noopener">📸 Suivez-nous sur Instagram · @mbayoumkeurshop</a></p>
+<p class="sm:col-span-3 flex flex-wrap gap-x-6"><a class="inline-flex items-center gap-2 py-1 hover:underline" href="<%= instagram %>" target="_blank" rel="noopener">📸 Instagram · @mbayoumkeurshop</a><a class="inline-flex items-center gap-2 py-1 hover:underline" href="<%= facebook %>" target="_blank" rel="noopener">👍 Facebook · Mbayoumkeur</a></p>
 </div></footer>
 <nav class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t grid grid-cols-4 text-xs pb-[env(safe-area-inset-bottom)]">
   <a href="/" class="flex flex-col items-center justify-center h-16 gap-0.5 text-slate-600"><span class="text-xl">🏠</span>Accueil</a>
