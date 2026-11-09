@@ -7,7 +7,7 @@
   const $ = (id) => document.getElementById(id);
   let cart = load();
 
-  const badge = () => { const el = $('cart-count'); if (el) el.textContent = cart.reduce((s, i) => s + i.qty, 0); };
+  const badge = () => { const n = cart.reduce((s, i) => s + i.qty, 0); document.querySelectorAll('.cart-count').forEach((el) => (el.textContent = n)); };
 
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-add]');
@@ -37,7 +37,7 @@
         const li = document.createElement('li');
         li.className = 'py-4 flex items-center gap-4';
         li.innerHTML = `<div class="flex-1"><p class="font-medium"></p><p class="text-sm text-slate-500"></p></div>
-          <div class="flex items-center gap-2"><button data-d="${idx}" class="w-8 h-8 rounded-full border">−</button><span class="w-6 text-center"></span><button data-u="${idx}" class="w-8 h-8 rounded-full border">+</button></div>
+          <div class="flex items-center gap-2"><button data-d="${idx}" class="w-10 h-10 text-lg rounded-full border">−</button><span class="w-6 text-center"></span><button data-u="${idx}" class="w-10 h-10 text-lg rounded-full border">+</button></div>
           <button data-r="${idx}" class="text-slate-400 hover:text-red-600" aria-label="Retirer">✕</button>`;
         li.querySelector('p.font-medium').textContent = i.name;
         li.querySelector('p.text-sm').textContent = i.price ? fcfa(i.price) + (i.unit ? ' / ' + i.unit : '') : 'Prix sur demande';

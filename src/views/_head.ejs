@@ -1,19 +1,24 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#26753c">
 <title><%= typeof title !== 'undefined' ? title + ' · ' : '' %><%= siteName %></title>
 <link rel="stylesheet" href="/style.css"></head>
-<body class="bg-white text-slate-800 font-sans antialiased" data-shops="<%= JSON.stringify(shops) %>" data-site="<%= siteName %>">
-<header class="border-b sticky top-0 bg-white/95 backdrop-blur z-10">
-  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4 flex-wrap">
-    <a href="/" class="text-xl font-bold text-leaf-700">🌿 <%= siteName %></a>
-    <nav class="flex gap-4 text-sm ml-auto order-3 md:order-2 w-full md:w-auto overflow-x-auto">
+<body class="bg-white text-slate-800 font-sans antialiased pb-20 md:pb-0" data-shops="<%= JSON.stringify(shops) %>" data-site="<%= siteName %>">
+<header class="border-b sticky top-0 bg-white/95 backdrop-blur z-20">
+  <div class="max-w-6xl mx-auto px-4 pt-3 pb-2 md:py-3 flex items-center gap-3">
+    <a href="/" class="text-lg md:text-xl font-bold text-leaf-700 shrink-0">🌿 <%= siteName %></a>
+    <nav class="hidden md:flex gap-5 text-sm ml-6">
       <a class="hover:text-leaf-600" href="/boutique">Boutique</a>
-      <% categories.slice(0,4).forEach(c => { %><a class="hover:text-leaf-600 whitespace-nowrap" href="/boutique?categorie=<%= encodeURIComponent(c.name) %>"><%= c.name %></a><% }) %>
-      <a class="hover:text-leaf-600 whitespace-nowrap" href="/notre-histoire">Notre histoire</a>
+      <a class="hover:text-leaf-600" href="/notre-histoire">Notre histoire</a>
       <a class="hover:text-leaf-600" href="/nous-contacter">Contact</a>
     </nav>
-    <form action="/boutique" class="order-2 md:order-3"><input name="q" value="<%= q %>" placeholder="Rechercher…" class="border rounded-full px-4 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-leaf-600"></form>
-    <a href="/ma-selection" class="order-2 md:order-4 relative bg-leaf-600 hover:bg-leaf-700 text-white text-sm px-4 py-1.5 rounded-full">Ma sélection <span id="cart-count" class="ml-1 bg-white text-leaf-700 rounded-full px-1.5 text-xs font-bold">0</span></a>
+    <form action="/boutique" class="hidden md:block ml-auto"><input name="q" value="<%= q %>" placeholder="Rechercher…" class="border rounded-full px-4 py-2 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-leaf-600"></form>
+    <a href="/ma-selection" class="ml-auto md:ml-0 bg-leaf-600 hover:bg-leaf-700 text-white text-sm px-4 h-10 inline-flex items-center rounded-full whitespace-nowrap">Ma sélection <span class="cart-count ml-2 bg-white text-leaf-700 rounded-full min-w-5 text-center px-1 text-xs font-bold">0</span></a>
+  </div>
+  <form action="/boutique" class="md:hidden px-4 pb-2"><input name="q" value="<%= q %>" type="search" placeholder="Rechercher une plante, un terreau…" class="w-full border rounded-full px-4 h-11 text-base focus:outline-none focus:ring-2 focus:ring-leaf-600"></form>
+  <div class="max-w-6xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto no-scrollbar [scrollbar-width:none]">
+    <% categories.forEach(c => { %><a href="/boutique?categorie=<%= encodeURIComponent(c.name) %>" class="shrink-0 whitespace-nowrap px-3 h-9 inline-flex items-center rounded-full border text-sm <%= (typeof cat !== 'undefined' && cat === c.name) ? 'bg-leaf-600 border-leaf-600 text-white' : 'bg-leaf-50 border-leaf-100 text-leaf-900' %>"><%= c.name %></a><% }) %>
   </div>
 </header>
 <main>
