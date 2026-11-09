@@ -1,7 +1,12 @@
 <%- include('_head', {title:'Contact'}) %>
-<div class="max-w-xl mx-auto px-4 mt-12"><h1 class="text-3xl font-bold text-leaf-900">Nous contacter</h1>
-<form class="mt-6 space-y-4" onsubmit="event.preventDefault();this.querySelector('p').hidden=false">
-<input required placeholder="Nom" class="w-full border rounded-lg px-4 py-2"><input required type="email" placeholder="Email" class="w-full border rounded-lg px-4 py-2">
-<textarea required rows="5" placeholder="Message" class="w-full border rounded-lg px-4 py-2"></textarea>
-<button class="bg-leaf-600 hover:bg-leaf-700 text-white px-6 py-2.5 rounded-full">Envoyer</button><p hidden class="text-leaf-700">Formulaire de démonstration : rien n’est envoyé.</p></form></div>
+<div class="max-w-3xl mx-auto px-4 mt-12"><h1 class="text-3xl font-bold text-leaf-900">Nous contacter</h1>
+<p class="mt-2 text-slate-600">Deux points de vente, joignables par téléphone et WhatsApp.</p>
+<div class="grid sm:grid-cols-2 gap-4 mt-8">
+<% shops.forEach(s => { %>
+<div class="border rounded-2xl p-5">
+  <h2 class="font-semibold text-leaf-900"><%= s.name %></h2>
+  <p class="mt-2"><a class="text-leaf-700 hover:underline" href="tel:+<%= s.number %>"><%= s.display %></a></p>
+  <a href="https://wa.me/<%= s.number %>" target="_blank" rel="noopener" class="inline-block mt-4 bg-[#25D366] text-white text-sm font-semibold px-5 py-2 rounded-full">Écrire sur WhatsApp</a>
+</div><% }) %>
+</div></div>
 <%- include('_foot') %>

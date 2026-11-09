@@ -2,7 +2,7 @@
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><%= typeof title !== 'undefined' ? title + ' · ' : '' %><%= siteName %></title>
 <link rel="stylesheet" href="/style.css"></head>
-<body class="bg-white text-slate-800 font-sans antialiased" data-wa="<%= whatsapp %>" data-site="<%= siteName %>">
+<body class="bg-white text-slate-800 font-sans antialiased" data-shops="<%= JSON.stringify(shops) %>" data-site="<%= siteName %>">
 <header class="border-b sticky top-0 bg-white/95 backdrop-blur z-10">
   <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4 flex-wrap">
     <a href="/" class="text-xl font-bold text-leaf-700">🌿 <%= siteName %></a>

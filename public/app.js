@@ -46,9 +46,17 @@
       });
       const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
       $('cart-total').textContent = total ? fcfa(total) : '—';
-      const wa = document.body.dataset.wa;
-      $('wa-missing').hidden = !!wa;
-      $('wa-send').href = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(text())}` : '#';
+      let shops = []; try { shops = JSON.parse(document.body.dataset.shops); } catch {}
+      $('wa-links').innerHTML = '';
+      shops.forEach((s) => {
+        const a = document.createElement('a');
+        a.href = `https://wa.me/${s.number}?text=${encodeURIComponent(text())}`;
+        a.target = '_blank'; a.rel = 'noopener';
+        a.className = 'block text-center bg-[#25D366] hover:brightness-95 text-white font-semibold py-3 rounded-2xl px-4';
+        a.innerHTML = '<span class="block"></span><span class="block text-xs font-normal opacity-90"></span>';
+        a.children[0].textContent = s.name; a.children[1].textContent = s.display;
+        $('wa-links').appendChild(a);
+      });
       badge();
     };
     list.addEventListener('click', (e) => {

@@ -5,5 +5,4 @@ services:
     environment:
       WP_URL: https://cms.mbayoumkeur.shop
       SITE_NAME: Mbayoumkeur
-      WHATSAPP_NUMBER: "221770000000"
     restart: unless-stopped

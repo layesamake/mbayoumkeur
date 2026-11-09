@@ -11,7 +11,7 @@ Boutique sans paiement en ligne : le client compose une **sélection d'articles*
 |---|---|---|
 | `WP_URL` | adresse du WordPress | `https://cms.mbayoumkeur.shop` |
 | `SITE_NAME` | nom affiché | `Mbayoumkeur` |
-| `WHATSAPP_NUMBER` | numéro de commande, format international sans `+` (ex. `221771234567`) | — |
+| `SHOPS` | points de vente et numéros WhatsApp : `Nom|221XXXXXXXXX;Nom 2|221YYYYYYYYY` | Thiès – Quartier Mbambara (+221 76 864 58 34) ; Grand Mbour (+221 76 941 00 74) |
 | `CACHE_SECONDS` | durée du cache du catalogue | `60` |
 | `PORT` | port d'écoute | `3000` |
 
@@ -45,4 +45,4 @@ ou avec Docker : `docker compose up -d --build` → http://localhost:8081
 
 - Dépôt : ce repo, branche `main`
 - Commande de build : `npm run build` — démarrage : `npm start` (`src/server.js`)
-- Définir `WHATSAPP_NUMBER` (et `WP_URL` si besoin) dans les variables d'environnement de l'application.
+- Les deux points de vente sont déjà configurés par défaut ; `SHOPS` et `WP_URL` ne sont à définir que pour les changer.

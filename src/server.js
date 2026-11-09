@@ -5,14 +5,21 @@ import { getCatalog } from './wp.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_NAME = process.env.SITE_NAME || 'Mbayoumkeur';
-const WHATSAPP = (process.env.WHATSAPP_NUMBER || '').replace(/\D/g, ''); // ex. 221771234567
+// Points de vente : "Nom|221XXXXXXXXX;Nom 2|221YYYYYYYYY" (variable SHOPS pour surcharger)
+const DEFAULT_SHOPS = 'Thiès – Quartier Mbambara|221768645834;Grand Mbour|221769410074';
+const SHOPS = (process.env.SHOPS || DEFAULT_SHOPS).split(';').map((s) => {
+  const [name, number] = s.split('|');
+  const digits = (number || '').replace(/\D/g, '');
+  const local = digits.startsWith('221') ? digits.slice(3) : digits;
+  return { name: name.trim(), number: digits, display: `+221 ${local.replace(/(\d{2})(\d{3})(\d{2})(\d{2})/, '$1 $2 $3 $4')}` };
+}).filter((s) => s.name && s.number);
 
 const app = express();
 app.set('view engine', 'ejs');
 app.set('views', path.join(root, 'src/views'));
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(express.static(path.join(root, 'public'), { maxAge: '1h' }));
+app.use(express.static(path.join(root, 'public'), { maxAge: '5m' }));
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 const fcfa = (n) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
@@ -21,7 +28,7 @@ app.use(wrap(async (req, res, next) => {
   const { products, source } = await getCatalog();
   req.products = products;
   Object.assign(res.locals, {
-    siteName: SITE_NAME, whatsapp: WHATSAPP, source, fcfa, q: '',
+    siteName: SITE_NAME, shops: SHOPS, source, fcfa, q: '',
     categories: [...new Set(products.map((p) => p.category))].map((name) => ({
       name, count: products.filter((p) => p.category === name).length,
     })),
