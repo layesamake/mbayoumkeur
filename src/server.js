@@ -31,6 +31,8 @@ app.use(wrap(async (req, res, next) => {
     siteName: SITE_NAME, shops: SHOPS, source,
     instagram: process.env.INSTAGRAM_URL || 'https://www.instagram.com/mbayoumkeurshop/',
     facebook: process.env.FACEBOOK_URL || 'https://www.facebook.com/mbayoumkeur', fcfa, q: '',
+    baseUrl: `${req.protocol}://${req.get('host')}`,
+    cur: (p) => (req.path === p ? 'aria-current="page"' : ''),
     categories: [...new Set(products.map((p) => p.category))].map((name) => ({
       name, count: products.filter((p) => p.category === name).length,
     })),

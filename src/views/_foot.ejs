@@ -2,14 +2,15 @@
 <footer class="bg-leaf-900 text-leaf-100 mt-12">
 <div class="max-w-6xl mx-auto px-4 py-8 text-sm grid gap-5 sm:grid-cols-3">
 <p><strong class="text-white"><%= siteName %></strong><br>Choisissez vos articles et commandez directement par WhatsApp.</p>
-<% shops.forEach(s => { %><p><strong class="text-white"><%= s.name %></strong><br><a class="inline-block py-1 hover:underline" href="tel:+<%= s.number %>"><%= s.display %></a></p><% }) %>
-<p class="sm:col-span-3 flex flex-wrap gap-x-6"><a class="inline-flex items-center gap-2 py-1 hover:underline" href="<%= instagram %>" target="_blank" rel="noopener">📸 Instagram · @mbayoumkeurshop</a><a class="inline-flex items-center gap-2 py-1 hover:underline" href="<%= facebook %>" target="_blank" rel="noopener">👍 Facebook · Mbayoumkeur</a></p>
+<% shops.forEach(s => { %><p><strong class="text-white"><%= s.name %></strong><br><a class="inline-flex items-center min-h-11 hover:underline" href="tel:+<%= s.number %>"><%= s.display %></a></p><% }) %>
+<p class="sm:col-span-3 flex flex-wrap gap-x-6"><a class="inline-flex items-center gap-2 min-h-11 hover:underline" href="<%= instagram %>" target="_blank" rel="noopener"><span aria-hidden="true">📸</span> Instagram · @mbayoumkeurshop<span class="sr-only"> (s’ouvre dans un nouvel onglet)</span></a><a class="inline-flex items-center gap-2 min-h-11 hover:underline" href="<%= facebook %>" target="_blank" rel="noopener"><span aria-hidden="true">👍</span> Facebook · Mbayoumkeur<span class="sr-only"> (s’ouvre dans un nouvel onglet)</span></a></p>
 </div></footer>
-<nav class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t grid grid-cols-4 text-xs pb-[env(safe-area-inset-bottom)]">
-  <a href="/" class="flex flex-col items-center justify-center h-16 gap-0.5 text-slate-600"><span class="text-xl">🏠</span>Accueil</a>
-  <a href="/boutique" class="flex flex-col items-center justify-center h-16 gap-0.5 text-slate-600"><span class="text-xl">🪴</span>Boutique</a>
-  <a href="/ma-selection" class="flex flex-col items-center justify-center h-16 gap-0.5 text-slate-600 relative"><span class="text-xl">🧺</span>Sélection<span class="cart-count absolute top-2 left-1/2 ml-2 bg-leaf-600 text-white rounded-full min-w-5 text-center px-1 text-[10px] font-bold">0</span></a>
-  <a href="/nous-contacter" class="flex flex-col items-center justify-center h-16 gap-0.5 text-slate-600"><span class="text-xl">📞</span>Contact</a>
+<nav aria-label="Navigation mobile" class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t grid grid-cols-4 text-[13px] pb-[env(safe-area-inset-bottom)]">
+  <a href="/" <%- cur('/') %> class="flex flex-col items-center justify-center h-16 gap-0.5 text-slate-600 aria-[current=page]:text-leaf-700 aria-[current=page]:font-bold"><span class="text-xl" aria-hidden="true">🏠</span>Accueil</a>
+  <a href="/boutique" <%- cur('/boutique') %> class="flex flex-col items-center justify-center h-16 gap-0.5 text-slate-600 aria-[current=page]:text-leaf-700 aria-[current=page]:font-bold"><span class="text-xl" aria-hidden="true">🪴</span>Boutique</a>
+  <a href="/ma-selection" <%- cur('/ma-selection') %> class="flex flex-col items-center justify-center h-16 gap-0.5 text-slate-600 relative aria-[current=page]:text-leaf-700 aria-[current=page]:font-bold"><span class="text-xl" aria-hidden="true">🧺</span>Sélection<span class="cart-count absolute top-2 left-1/2 ml-2 bg-leaf-600 text-white rounded-full min-w-5 text-center px-1 text-xs font-bold">0</span></a>
+  <a href="/nous-contacter" <%- cur('/nous-contacter') %> class="flex flex-col items-center justify-center h-16 gap-0.5 text-slate-600 aria-[current=page]:text-leaf-700 aria-[current=page]:font-bold"><span class="text-xl" aria-hidden="true">📞</span>Contact</a>
 </nav>
+<div id="live" class="sr-only" role="status" aria-live="polite"></div>
 <script src="/app.js" defer></script>
 </body></html>

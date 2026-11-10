@@ -1,15 +1,15 @@
-<%- include('_head', {title: p.name}) %>
+<%- include('_head', {title: p.name, description: p.excerpt || (p.name + ' – ' + p.category + '. Commandez par WhatsApp.'), ogImage: p.image}) %>
 <div class="max-w-5xl mx-auto px-4 mt-8">
-<p class="text-sm text-slate-500"><a href="/boutique" class="hover:underline">Boutique</a> › <a class="hover:underline" href="/boutique?categorie=<%= encodeURIComponent(p.category) %>"><%= p.category %></a></p>
+<nav aria-label="Fil d’Ariane" class="text-sm text-slate-600"><a href="/boutique" class="hover:underline">Boutique</a> <span aria-hidden="true">›</span> <a class="hover:underline" href="/boutique?categorie=<%= encodeURIComponent(p.category) %>"><%= p.category %></a></nav>
 <div class="grid md:grid-cols-2 gap-8 mt-4">
 <div class="rounded-2xl w-full bg-leaf-50 aspect-square overflow-hidden flex items-center justify-center text-8xl">
-<% if (p.image) { %><img src="<%= p.image %>" alt="<%= p.name %>" class="w-full h-full object-cover"><% } else { %>🪴<% } %></div>
+<% if (p.image) { %><img src="<%= p.image %>" alt="<%= p.name %>" class="w-full h-full object-cover"><% } else { %><span aria-hidden="true">🪴</span><% } %></div>
 <div><h1 class="text-3xl font-bold text-leaf-900"><%= p.name %></h1><p class="text-leaf-600 mt-1"><%= p.category %></p>
-<% if (p.ref) { %><p class="text-xs text-slate-400 mt-1">Réf. <%= p.ref %></p><% } %>
-<p class="text-2xl mt-4 font-semibold"><%= p.price ? fcfa(p.price) : 'Prix sur demande' %><% if (p.price && p.unit) { %><span class="text-base font-normal text-slate-500"> / <%= p.unit %></span><% } %></p>
+<% if (p.ref) { %><p class="text-xs text-slate-600 mt-1">Réf. <%= p.ref %></p><% } %>
+<p class="text-2xl mt-4 font-semibold"><%= p.price ? fcfa(p.price) : 'Prix sur demande' %><% if (p.price && p.unit) { %><span class="text-base font-normal text-slate-600"> / <%= p.unit %></span><% } %></p>
 <div class="mt-5 text-slate-600 leading-relaxed [&_p]:mb-3"><%- p.html %></div>
 <% if (p.available) { %><button type="button" data-add data-slug="<%= p.slug %>" data-ref="<%= p.ref || '' %>" data-name="<%= p.name %>" data-price="<%= p.price %>" data-unit="<%= p.unit %>" class="mt-6 w-full md:w-auto min-h-12 bg-leaf-600 hover:bg-leaf-700 text-white font-semibold px-8 rounded-full transition">+ Ajouter à ma sélection</button>
-<% } else { %><p class="mt-6 text-slate-500">Ce produit est actuellement indisponible.</p><% } %></div></div>
+<% } else { %><p class="mt-6 text-slate-600">Ce produit est actuellement indisponible.</p><% } %></div></div>
 <% if (related.length) { %><h2 class="text-xl font-bold text-leaf-900 mt-14 mb-4">Dans la même catégorie</h2>
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4"><% related.forEach(p => { %><%- include('_card', {p}) %><% }) %></div><% } %>
 </div>

@@ -2,25 +2,34 @@
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#04481a">
-<title><%= typeof title !== 'undefined' ? title + ' · ' : '' %><%= siteName %></title>
+<% const pageTitle = (typeof title !== 'undefined' ? title + ' · ' : '') + siteName;
+   const pageDesc = (typeof description !== 'undefined' && description) ? description : 'Plants, arbres fruitiers, légumes et matériel de jardinage. Choisissez vos articles et commandez directement par WhatsApp.';
+   const pageImg = (typeof ogImage !== 'undefined' && ogImage) ? ogImage : '/img/emblem.png';
+   const absImg = /^https?:/.test(pageImg) ? pageImg : baseUrl + pageImg; %>
+<title><%= pageTitle %></title>
+<meta name="description" content="<%= pageDesc %>">
+<meta property="og:type" content="website"><meta property="og:locale" content="fr_FR">
+<meta property="og:site_name" content="<%= siteName %>"><meta property="og:title" content="<%= pageTitle %>">
+<meta property="og:description" content="<%= pageDesc %>"><meta property="og:image" content="<%= absImg %>">
 <link rel="icon" type="image/png" href="/img/icon.png"><link rel="apple-touch-icon" href="/img/icon.png">
-<% if (typeof home !== 'undefined') { %><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet"><% } %>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css"></head>
 <body class="bg-white text-slate-800 font-sans antialiased pb-20 md:pb-0" data-shops="<%= JSON.stringify(shops) %>" data-site="<%= siteName %>">
+<a href="#contenu" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:text-leaf-900 focus:font-semibold focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg">Aller au contenu</a>
 <header class="border-b sticky top-0 bg-white/95 backdrop-blur z-20">
   <div class="max-w-6xl mx-auto px-4 pt-3 pb-2 md:py-3 flex items-center gap-3">
-    <a href="/" class="shrink-0" aria-label="<%= siteName %> – accueil"><img src="/img/logo.png" alt="<%= siteName %>" width="480" height="128" class="h-10 md:h-12 w-auto"></a>
-    <nav class="hidden md:flex gap-5 text-sm ml-6">
-      <a class="hover:text-leaf-600" href="/boutique">Boutique</a>
-      <a class="hover:text-leaf-600" href="/notre-histoire">Notre histoire</a>
-      <a class="hover:text-leaf-600" href="/nous-contacter">Contact</a>
+    <a href="/" class="shrink-0" aria-label="<%= siteName %> – accueil"><img src="/img/logo.png" alt="" width="480" height="128" class="h-10 md:h-12 w-auto"></a>
+    <nav aria-label="Principale" class="hidden md:flex gap-5 text-sm ml-6">
+      <a class="hover:text-leaf-600" href="/boutique" <%- cur('/boutique') %>>Boutique</a>
+      <a class="hover:text-leaf-600" href="/notre-histoire" <%- cur('/notre-histoire') %>>Notre histoire</a>
+      <a class="hover:text-leaf-600" href="/nous-contacter" <%- cur('/nous-contacter') %>>Contact</a>
     </nav>
-    <form action="/boutique" class="hidden md:block ml-auto"><input name="q" value="<%= q %>" placeholder="Rechercher…" class="border rounded-full px-4 py-2 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-leaf-600"></form>
+    <form action="/boutique" role="search" class="hidden md:block ml-auto"><label for="q-desktop" class="sr-only">Rechercher un produit</label><input id="q-desktop" name="q" type="search" value="<%= q %>" placeholder="Rechercher…" class="border rounded-full px-4 py-2 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-leaf-600"></form>
     <a href="/ma-selection" class="ml-auto md:ml-0 bg-leaf-600 hover:bg-leaf-700 text-white text-sm px-4 h-10 inline-flex items-center rounded-full whitespace-nowrap">Ma sélection <span class="cart-count ml-2 bg-white text-leaf-700 rounded-full min-w-5 text-center px-1 text-xs font-bold">0</span></a>
   </div>
-  <form action="/boutique" class="md:hidden px-4 pb-2"><input name="q" value="<%= q %>" type="search" placeholder="Rechercher une plante, un terreau…" class="w-full border rounded-full px-4 h-11 text-base focus:outline-none focus:ring-2 focus:ring-leaf-600"></form>
-  <div class="max-w-6xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto no-scrollbar [scrollbar-width:none]">
-    <% categories.forEach(c => { %><a href="/boutique?categorie=<%= encodeURIComponent(c.name) %>" class="shrink-0 whitespace-nowrap px-3 h-9 inline-flex items-center rounded-full border text-sm <%= (typeof cat !== 'undefined' && cat === c.name) ? 'bg-leaf-600 border-leaf-600 text-white' : 'bg-leaf-50 border-leaf-100 text-leaf-900' %>"><%= c.name %></a><% }) %>
-  </div>
+  <form action="/boutique" role="search" class="md:hidden px-4 pb-2"><label for="q-mobile" class="sr-only">Rechercher un produit</label><input id="q-mobile" name="q" value="<%= q %>" type="search" placeholder="Rechercher une plante, un terreau…" class="w-full border rounded-full px-4 h-11 text-base focus:outline-none focus:ring-2 focus:ring-leaf-600"></form>
+  <nav aria-label="Catégories" class="max-w-6xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto no-scrollbar [scrollbar-width:none]">
+    <% categories.forEach(c => { const on = (typeof cat !== 'undefined' && cat === c.name); %><a href="/boutique?categorie=<%= encodeURIComponent(c.name) %>" <%- on ? 'aria-current="true"' : '' %> class="shrink-0 whitespace-nowrap px-3 h-9 inline-flex items-center rounded-full border text-sm <%= on ? 'bg-leaf-600 border-leaf-600 text-white' : 'bg-leaf-50 border-leaf-100 text-leaf-900' %>"><%= c.name %></a><% }) %>
+  </nav>
 </header>
-<main>
+<main id="contenu" tabindex="-1" class="focus:outline-none">
