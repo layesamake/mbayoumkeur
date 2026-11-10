@@ -41,7 +41,7 @@ app.use(wrap(async (req, res, next) => {
 const PAGE = 24;
 app.get('/', (req, res) => {
   const featured = res.locals.categories.map((c) => ({ ...c, sample: req.products.find((p) => p.category === c.name) }));
-  res.render('home', { featured, latest: req.products.slice(0, 8), total: req.products.length });
+  res.render('home', { home: true, featured, latest: req.products.slice(0, 8), total: req.products.length });
 });
 app.get('/boutique', (req, res) => {
   const q = String(req.query.q || '').trim();

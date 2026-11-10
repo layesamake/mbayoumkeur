@@ -1,18 +1,91 @@
 <%- include('_head') %>
-<section class="bg-gradient-to-br from-leaf-100 to-leaf-50"><div class="max-w-6xl mx-auto px-4 py-16 md:py-24 text-center">
-  <p class="text-leaf-700 font-medium">Plantes, herbes aromatiques, arbres fruitiers et fleurs</p>
-  <h1 class="text-4xl md:text-6xl font-bold text-leaf-900 mt-3">La touche de verdure<br>de votre maison</h1>
-  <p class="mt-5 text-lg max-w-2xl mx-auto text-slate-600">Composez votre sélection, puis envoyez votre commande en un clic par WhatsApp. Pas de paiement en ligne : on confirme ensemble.</p>
-  <a href="/boutique" class="inline-block mt-8 bg-leaf-600 hover:bg-leaf-700 text-white px-8 py-3 rounded-full font-medium transition">Découvrir la boutique</a>
-</div></section>
-<section class="max-w-6xl mx-auto px-4 mt-14"><h2 class="text-2xl font-bold text-leaf-900 mb-6">Nos univers</h2>
-<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-<% featured.forEach(c => { %>
-<a href="/boutique?categorie=<%= encodeURIComponent(c.name) %>" class="relative rounded-2xl overflow-hidden aspect-[4/3] group bg-leaf-600">
-  <% if (c.sample && c.sample.image) { %><img loading="lazy" src="<%= c.sample.image %>" alt="" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"><% } %>
-  <div class="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
-  <div class="absolute bottom-3 left-4 text-white"><p class="font-semibold text-lg"><%= c.name %></p><p class="text-xs opacity-80"><%= c.count %> produits</p></div>
-</a><% }) %></div></section>
-<section class="max-w-6xl mx-auto px-4 mt-14"><h2 class="text-2xl font-bold text-leaf-900 mb-6">Nouveautés</h2>
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4"><% latest.forEach(p => { %><%- include('_card', {p}) %><% }) %></div></section>
+<div class="home">
+
+<%# Accueil : le vert profond et le vert pousse du logo, le soleil et la carotte en touches chaudes %>
+<section class="relative overflow-hidden bg-leaf-900 text-white">
+  <div class="max-w-6xl mx-auto px-5 pt-10 pb-28 md:pt-16 md:pb-36 grid md:grid-cols-[1.25fr_.75fr] gap-8 md:gap-6 items-center">
+    <div>
+      <h1 class="home-rise font-display font-extrabold text-[2.9rem] leading-[0.98] md:text-[5.2rem] tracking-tight">De la terre<br>à votre table</h1>
+      <p class="home-rise mt-6 text-lg md:text-xl leading-relaxed text-leaf-100 max-w-[36ch]" style="animation-delay:.12s">Plants, arbres fruitiers et légumes de nos producteurs partenaires. Vous choisissez, vous commandez sur WhatsApp, nous organisons la livraison.</p>
+      <div class="home-rise mt-8 flex flex-wrap gap-3" style="animation-delay:.24s">
+        <a href="/boutique" class="inline-flex items-center justify-center min-h-12 px-7 rounded-full bg-carrot text-leaf-900 text-lg font-bold hover:brightness-110 transition">Voir les <%= total %> produits</a>
+        <a href="#commande" class="inline-flex items-center justify-center min-h-12 px-6 rounded-full border-2 border-white/50 text-white text-lg font-semibold hover:bg-white/10 transition">Comment commander</a>
+      </div>
+    </div>
+    <div class="home-pop relative w-32 h-32 md:mx-auto md:w-[22rem] md:h-[22rem] order-first md:order-none" aria-hidden="true">
+      <div class="absolute inset-[6%] rounded-full bg-sun-soft"></div>
+      <img src="/img/emblem.png" alt="" width="420" height="420" class="relative w-full h-full object-contain drop-shadow-[0_10px_0_rgba(0,0,0,.12)]">
+    </div>
+  </div>
+  <%# Sillons : les rangs cultivés du logo, qui ramènent doucement vers la page %>
+  <svg class="absolute bottom-0 inset-x-0 w-full h-14 md:h-24" viewBox="0 0 1440 96" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 44 C240 0 480 92 720 44 S1200 0 1440 44 V96 H0Z" fill="#479a05"/>
+    <path d="M0 66 C260 22 520 104 780 62 S1220 26 1440 66 V96 H0Z" fill="#ffffff"/>
+  </svg>
+</section>
+
+<section id="commande" class="max-w-6xl mx-auto px-5 pt-6 md:pt-10 scroll-mt-24">
+  <h2 class="font-display font-extrabold text-3xl md:text-4xl text-leaf-900">Commander en trois étapes</h2>
+  <ol class="mt-8 grid md:grid-cols-3 gap-8 md:gap-10">
+    <% [
+      ['Choisissez vos plantes', 'Parcourez la boutique et ajoutez chaque plante à votre sélection.'],
+      ['Envoyez par WhatsApp', 'Votre sélection part en un message, avec le détail et votre adresse de livraison.'],
+      ['Nous confirmons et livrons', 'Nous validons la commande avec vous, puis nous organisons la livraison. Pas de paiement en ligne.']
+    ].forEach((s, i) => { %>
+    <li class="flex gap-4 md:block">
+      <span class="shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-leaf-600 text-white font-display font-extrabold text-2xl"><%= i + 1 %></span>
+      <div class="md:mt-4">
+        <h3 class="font-display font-bold text-xl text-leaf-900 leading-tight"><%= s[0] %></h3>
+        <p class="mt-1.5 text-slate-600 leading-relaxed max-w-[34ch]"><%= s[1] %></p>
+      </div>
+    </li>
+    <% }) %>
+  </ol>
+</section>
+
+<section class="max-w-6xl mx-auto px-5 mt-16 md:mt-24">
+  <div class="flex items-end justify-between gap-4">
+    <h2 class="font-display font-extrabold text-3xl md:text-4xl text-leaf-900">Nos univers</h2>
+    <a href="/boutique" class="text-leaf-600 font-semibold underline underline-offset-4 hover:text-leaf-900 whitespace-nowrap">Toute la boutique</a>
+  </div>
+  <div class="mt-6 grid grid-cols-2 md:grid-cols-3 auto-rows-[9.5rem] md:auto-rows-[13rem] gap-3 md:gap-4">
+    <% featured.forEach((c, i) => { %>
+    <a href="/boutique?categorie=<%= encodeURIComponent(c.name) %>" class="group relative overflow-hidden rounded-2xl bg-leaf-600 <%= i === 0 ? 'col-span-2 row-span-2' : '' %>">
+      <% if (c.sample && c.sample.image) { %><img loading="lazy" src="<%= c.sample.image %>" alt="" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"><% } %>
+      <div class="absolute left-0 bottom-0 max-w-[85%] bg-leaf-900 text-white pl-4 pr-5 py-2.5 rounded-tr-2xl">
+        <p class="font-display font-bold <%= i === 0 ? 'text-2xl md:text-3xl' : 'text-lg md:text-xl' %> leading-tight"><%= c.name %></p>
+        <p class="text-sm text-leaf-100"><%= c.count %> produit<%= c.count > 1 ? 's' : '' %></p>
+      </div>
+    </a>
+    <% }) %>
+  </div>
+</section>
+
+<section class="max-w-6xl mx-auto px-5 mt-16 md:mt-24">
+  <div class="flex items-end justify-between gap-4">
+    <h2 class="font-display font-extrabold text-3xl md:text-4xl text-leaf-900">Récemment ajoutées</h2>
+    <a href="/boutique" class="text-leaf-600 font-semibold underline underline-offset-4 hover:text-leaf-900 whitespace-nowrap">Tout voir</a>
+  </div>
+  <div class="mt-6 flex md:grid md:grid-cols-4 gap-3 md:gap-4 overflow-x-auto md:overflow-visible snap-x snap-mandatory pb-3 -mx-5 px-5 md:mx-0 md:px-0 [scrollbar-width:none]">
+    <% latest.forEach(p => { %><div class="w-44 md:w-auto shrink-0 snap-start"><%- include('_card', {p}) %></div><% }) %>
+  </div>
+</section>
+
+<section class="max-w-6xl mx-auto px-5 mt-16 md:mt-24">
+  <div class="rounded-3xl bg-leaf-50 border border-leaf-100 p-6 md:p-10 grid md:grid-cols-[1fr_auto] gap-6 items-center">
+    <div>
+      <h2 class="font-display font-extrabold text-2xl md:text-3xl text-leaf-900">Une question avant de commander ?</h2>
+      <p class="mt-2 text-slate-700 leading-relaxed max-w-[48ch]">Écrivez-nous sur WhatsApp : nous vous conseillons sur les plantes, les quantités et la livraison.</p>
+    </div>
+    <div class="flex flex-col sm:flex-row md:flex-col gap-3">
+      <% shops.forEach(s => { %>
+      <a href="https://wa.me/<%= s.number %>" target="_blank" rel="noopener" class="inline-flex flex-col items-center justify-center min-h-14 px-6 py-2 rounded-2xl bg-[#25D366] text-leaf-900 font-bold hover:brightness-95 transition">
+        <span><%= s.name %></span><span class="text-sm font-semibold"><%= s.display %></span>
+      </a>
+      <% }) %>
+    </div>
+  </div>
+</section>
+
+</div>
 <%- include('_foot') %>

@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .home { font-family: 'Source Sans 3', system-ui, sans-serif; }
+  .home a:focus-visible, .home button:focus-visible { outline: 3px solid #fc7404; outline-offset: 2px; }
+  .home-rise { animation: home-rise .7s cubic-bezier(.2,.7,.2,1) both; }
+  .home-pop { animation: home-pop .9s cubic-bezier(.3,1.35,.5,1) .15s both; }
+  @keyframes home-rise { from { opacity: 0; transform: translateY(14px); } }
+  @keyframes home-pop { from { opacity: 0; transform: scale(.82) rotate(-5deg); } }
+  @media (prefers-reduced-motion: reduce) { .home-rise, .home-pop { animation: none; } }
+}

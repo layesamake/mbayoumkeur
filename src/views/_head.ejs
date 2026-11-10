@@ -4,6 +4,7 @@
 <meta name="theme-color" content="#04481a">
 <title><%= typeof title !== 'undefined' ? title + ' · ' : '' %><%= siteName %></title>
 <link rel="icon" type="image/png" href="/img/icon.png"><link rel="apple-touch-icon" href="/img/icon.png">
+<% if (typeof home !== 'undefined') { %><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet"><% } %>
 <link rel="stylesheet" href="/style.css"></head>
 <body class="bg-white text-slate-800 font-sans antialiased pb-20 md:pb-0" data-shops="<%= JSON.stringify(shops) %>" data-site="<%= siteName %>">
 <header class="border-b sticky top-0 bg-white/95 backdrop-blur z-20">
