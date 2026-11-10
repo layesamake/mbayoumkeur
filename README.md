@@ -48,6 +48,14 @@ wp mbk-images optimize               # traite tout, originaux gardés dans wp-co
 Une fois le résultat vérifié sur le site, `wp-content/mbk-originals` peut être supprimé pour récupérer l'espace.
 Réglages (dans `wp-config.php`) : `MBK_IMG_MAX` (1600), `MBK_IMG_QUALITY_WEBP` (78), `MBK_IMG_QUALITY_JPEG` (80).
 
+## 1 ter. Espace agriculteur (application mobile)
+
+Application installable (PWA) sur `/agriculteur` : l'agriculteur se connecte avec **son compte WordPress** (rôle « Agriculteur »), voit **ses** plantes, en ajoute depuis le terrain (appareil photo, nom, catégorie, prix, conditionnement, stock), enregistre un brouillon ou publie. La photo est réduite sur le téléphone avant l'envoi (WebP, 1600 px, sans GPS).
+
+- **WordPress** : copier `wordpress/mbayoumkeur-agriculteurs.php` et le dossier `wordpress/mbayoumkeur-agriculteurs/` (dont le nouveau `api.php`) dans `wp-content/mu-plugins/`. Il ajoute l'API `mbk/v1` (connexion, plantes, stock). Prérequis : site en **HTTPS** (mots de passe d'application WordPress) et comptes agriculteur créés par l'administrateur.
+- **Node** : définir `FARMER_SECRET` (32 caractères minimum, secret) dans les variables d'environnement. Sans elle, une clé temporaire est utilisée et les sessions sautent à chaque redémarrage.
+- **Sécurité** : le mot de passe d'application de l'agriculteur reste chiffré dans un cookie `httpOnly` (jamais visible par le navigateur) ; essais de connexion limités côté Node et côté WordPress ; un agriculteur ne peut lire ni modifier que ses plantes.
+- **Installation sur le téléphone** : ouvrir `/agriculteur` dans Chrome puis « Ajouter à l'écran d'accueil ».
 ## 2. Lancer en local
 
 ```bash

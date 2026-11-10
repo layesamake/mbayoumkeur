@@ -105,7 +105,7 @@ add_filter('login_redirect', fn ($to, $req, $user) =>
 add_filter('rest_pre_dispatch', function ($result, $server, $request) {
   if (!mbk_is_farmer()) return $result;
   if (in_array($request->get_method(), ['POST', 'PUT', 'PATCH', 'DELETE'], true)
-      && !preg_match('#^/wp/v2/(' . MBK_CPT . '|media|users/me)(/|$)#', $request->get_route())) {
+      && !preg_match('#^/(wp/v2/(' . MBK_CPT . '|media|users/me)|mbk/v1/plantes)(/|$)#', $request->get_route())) {
     return new WP_Error('mbk_forbidden', 'Action non autorisée.', ['status' => 403]);
   }
   return $result;

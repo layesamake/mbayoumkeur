@@ -1,0 +1,17 @@
+{
+  "name": "Mbayoumkeur – Espace agriculteur",
+  "short_name": "Mes plantes",
+  "description": "Ajoutez vos plantes depuis le terrain : photo, prix, stock.",
+  "lang": "fr",
+  "start_url": "/agriculteur",
+  "scope": "/agriculteur/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#04481a",
+  "theme_color": "#04481a",
+  "icons": [
+    { "src": "/agriculteur/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/agriculteur/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/agriculteur/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
