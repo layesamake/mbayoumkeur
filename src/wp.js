@@ -40,6 +40,21 @@ async function fetchAll() {
   return [...produits, ...plantes];
 }
 
+// Image : tailles web créées par le plugin mbayoumkeur-images (400/800/1200 px, WebP), repli sur « large » puis l'original
+function pickImage(media) {
+  const d = media?.media_details || {};
+  const s = d.sizes || {};
+  const best = s['mbk-1200'] || s['mbk-800'] || s.large;
+  const set = ['mbk-400', 'mbk-800', 'mbk-1200'].filter((k) => s[k]?.source_url && s[k]?.width).map((k) => `${s[k].source_url} ${s[k].width}w`);
+  if (!set.length && d.width && media?.source_url && d.width <= 1600) set.push(`${media.source_url} ${d.width}w`);
+  return {
+    image: best?.source_url || media?.source_url || '',
+    srcset: set.length > 1 ? set.join(', ') : '',
+    imageW: best?.width || d.width || 0,
+    imageH: best?.height || d.height || 0,
+  };
+}
+
 const ref = (id) => 'MK-' + String(id).padStart(4, '0');
 
 function toProduct(post) {
@@ -51,7 +66,7 @@ function toProduct(post) {
     slug: post.slug,
     name: strip(post.title.rendered),
     category: terms[0]?.name || 'Divers',
-    image: media?.media_details?.sizes?.large?.source_url || media?.source_url || '',
+    ...pickImage(media),
     excerpt: strip(post.excerpt?.rendered),
     html: post.content?.rendered || '',
     price: Number(m.prix) || 0,
@@ -78,7 +93,7 @@ function toPlante(post) {
     slug: post.slug,
     name: strip(post.title.rendered),
     category: CATEGORIES[cat] || (cat ? cat.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'Divers'),
-    image: media?.media_details?.sizes?.large?.source_url || media?.source_url || '',
+    ...pickImage(media),
     excerpt: strip(a.conseils_entretien || post.excerpt?.rendered),
     html: post.content?.rendered || '',
     price: Number(a.prix_unitaire) || 0,

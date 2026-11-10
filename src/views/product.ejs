@@ -3,7 +3,7 @@
 <nav aria-label="Fil d’Ariane" class="text-sm text-slate-600"><a href="/boutique" class="hover:underline">Boutique</a> <span aria-hidden="true">›</span> <a class="hover:underline" href="/boutique?categorie=<%= encodeURIComponent(p.category) %>"><%= p.category %></a></nav>
 <div class="grid md:grid-cols-2 gap-8 mt-4">
 <div class="rounded-2xl w-full bg-leaf-50 aspect-square overflow-hidden flex items-center justify-center text-8xl">
-<% if (p.image) { %><img src="<%= p.image %>" alt="<%= p.name %>" class="w-full h-full object-cover"><% } else { %><span aria-hidden="true">🪴</span><% } %></div>
+<% if (p.image) { %><img src="<%= p.image %>"<% if (p.srcset) { %> srcset="<%= p.srcset %>" sizes="(min-width:768px) 40vw, 92vw"<% } %> fetchpriority="high" decoding="async" alt="<%= p.name %>" class="w-full h-full object-cover"><% } else { %><span aria-hidden="true">🪴</span><% } %></div>
 <div><h1 class="text-3xl font-bold text-leaf-900"><%= p.name %></h1><p class="text-leaf-600 mt-1"><%= p.category %></p>
 <% if (p.ref) { %><p class="text-xs text-slate-600 mt-1">Réf. <%= p.ref %></p><% } %>
 <p class="text-2xl mt-4 font-semibold"><%= p.price ? fcfa(p.price) : 'Prix sur demande' %><% if (p.price && p.unit) { %><span class="text-base font-normal text-slate-600"> / <%= p.unit %></span><% } %></p>
