@@ -18,16 +18,26 @@ const demo = JSON.parse(readFileSync(path.join(root, 'data/demo-products.json'),
 
 let cache = { at: 0, data: null };
 
-async function fetchAll() {
+async function fetchType(type) {
   const out = [];
   for (let page = 1; page <= 20; page++) {
-    const res = await fetch(`${WP_URL}/wp-json/wp/v2/produits?per_page=100&page=${page}&_embed=wp:featuredmedia,wp:term`, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) throw new Error(`WP produits -> ${res.status}`);
+    const res = await fetch(`${WP_URL}/wp-json/wp/v2/${type}?per_page=100&page=${page}&_embed=wp:featuredmedia,wp:term`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(`WP ${type} -> ${res.status}`);
     const batch = await res.json();
     out.push(...batch);
     if (batch.length < 100) break;
   }
   return out;
+}
+
+// Type « produits » (plugin mbayoumkeur-produits) + type « plante » (champs ACF)
+async function fetchAll() {
+  const [produits, plantes] = await Promise.all([
+    fetchType('produits').then((l) => l.map(toProduct)),
+    // le type « plante » est optionnel : s'il est absent ou en erreur, on ignore
+    fetchType('plante').then((l) => l.map(toPlante)).catch((err) => { console.error('WordPress plante :', err.message); return []; }),
+  ]);
+  return [...produits, ...plantes];
 }
 
 function toProduct(post) {
@@ -47,11 +57,37 @@ function toProduct(post) {
   };
 }
 
+const CATEGORIES = {
+  'herbes-aromatiques': 'Herbes aromatiques',
+  'plantes-comestibles': 'Plantes comestibles',
+  'arbres-fruitiers': 'Arbres fruitiers',
+  'terreaux-et-substrat': 'Terreaux et substrat',
+  'accessoires-de-jardinage': 'Accessoires de jardinage',
+};
+const UNITS = { alveole: 'alvéole', pot: 'pot', sachet: 'sachet', plant: 'plant', botte: 'botte' };
+
+function toPlante(post) {
+  const a = post.acf || {};
+  const media = post._embedded?.['wp:featuredmedia']?.[0];
+  const cat = a.categorie_univers;
+  return {
+    slug: post.slug,
+    name: strip(post.title.rendered),
+    category: CATEGORIES[cat] || (cat ? cat.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'Divers'),
+    image: media?.media_details?.sizes?.large?.source_url || media?.source_url || '',
+    excerpt: strip(a.conseils_entretien || post.excerpt?.rendered),
+    html: post.content?.rendered || '',
+    price: Number(a.prix_unitaire) || 0,
+    unit: UNITS[a.conditionnement] || a.conditionnement || '',
+    available: a.disponible !== false && a.disponible !== 0,
+  };
+}
+
 export async function getCatalog() {
   if (cache.data && Date.now() - cache.at < TTL) return cache.data;
   let data;
   try {
-    const products = (await fetchAll()).map(toProduct);
+    const products = await fetchAll();
     data = products.length ? { source: 'wordpress', products } : { source: 'demo', products: demo };
   } catch (err) {
     console.error('WordPress indisponible :', err.message);
