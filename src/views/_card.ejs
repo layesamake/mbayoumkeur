@@ -1,7 +1,7 @@
 <div class="group rounded-xl overflow-hidden border hover:shadow-lg transition bg-white flex flex-col">
   <a href="/produit/<%= encodeURIComponent(p.slug) %>" class="block">
     <div class="aspect-square bg-leaf-50 overflow-hidden flex items-center justify-center text-5xl">
-      <% if (p.image) { %><img loading="lazy" src="<%= p.image %>" alt="" class="w-full h-full object-cover group-hover:scale-105 transition duration-300 <%= p.available ? '' : 'opacity-50 grayscale' %>"><% } else { %><span aria-hidden="true">🪴</span><% } %>
+      <% if (p.image) { %><img loading="lazy" decoding="async" src="<%= p.image %>"<% if (p.srcset) { %> srcset="<%= p.srcset %>" sizes="(min-width:1280px) 22rem, (min-width:1024px) 28vw, 46vw"<% } %> alt="" class="w-full h-full object-cover group-hover:scale-105 transition duration-300 <%= p.available ? '' : 'opacity-50 grayscale' %>"><% } else { %><span aria-hidden="true">🪴</span><% } %>
     </div>
     <div class="p-3 pb-1"><p class="text-xs text-leaf-600"><%= p.category %></p><h3 class="font-medium leading-tight mt-0.5"><%= p.name %></h3>
     <p class="text-sm mt-1 text-slate-600"><%= p.price ? fcfa(p.price) + (p.unit ? ' / ' + p.unit : '') : 'Prix sur demande' %></p></div>

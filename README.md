@@ -32,6 +32,22 @@ WP_USER=admin WP_APP_PASSWORD="xxxx xxxx xxxx xxxx" npm run seed
 
 Tant que WordPress n'a aucun produit, le site affiche les produits de démonstration de `data/demo-products.json`.
 
+## 1 bis. WordPress : optimisation des images
+
+Copier `wordpress/mbayoumkeur-images.php` dans `wp-content/mu-plugins/` (même dossier que les autres).
+
+- **À l'envoi** (téléphone d'un agriculteur, médiathèque, API) : photo redressée, réduite à 1600 px, convertie en **WebP** (JPEG optimisé si le serveur ne sait pas faire de WebP) et **débarrassée de ses métadonnées, position GPS comprise**. En cas de panne, l'original est conservé : un envoi n'échoue jamais à cause de l'optimisation.
+- **Tailles générées** : `mbk-400`, `mbk-800`, `mbk-1200` et la vignette de l'administration (les tailles WordPress inutiles ne sont plus créées). Le site Node s'en sert pour `srcset` ; les anciennes images (sans ces tailles) continuent de s'afficher.
+- **Images déjà en ligne** : *Outils › Optimiser les images* (case « Simulation » pour voir le gain avant), ou en ligne de commande :
+
+```bash
+wp mbk-images optimize --dry-run     # simulation
+wp mbk-images optimize               # traite tout, originaux gardés dans wp-content/mbk-originals (privé)
+```
+
+Une fois le résultat vérifié sur le site, `wp-content/mbk-originals` peut être supprimé pour récupérer l'espace.
+Réglages (dans `wp-config.php`) : `MBK_IMG_MAX` (1600), `MBK_IMG_QUALITY_WEBP` (78), `MBK_IMG_QUALITY_JPEG` (80).
+
 ## 2. Lancer en local
 
 ```bash
