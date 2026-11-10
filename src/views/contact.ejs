@@ -1,14 +1,14 @@
-<%- include('_head', {title:'Contact'}) %>
+<%- include('_head', {title:'Contact', description:'Contactez Mbayoumkeur par téléphone ou WhatsApp : deux points de vente, Thiès Mbambara et Grand Mbour.'}) %>
 <div class="max-w-3xl mx-auto px-4 mt-12"><h1 class="text-3xl font-bold text-leaf-900">Nous contacter</h1>
 <p class="mt-2 text-slate-600">Deux points de vente, joignables par téléphone et WhatsApp.</p>
 <div class="grid sm:grid-cols-2 gap-4 mt-8">
 <% shops.forEach(s => { %>
 <div class="border rounded-2xl p-5">
   <h2 class="font-semibold text-leaf-900"><%= s.name %></h2>
-  <p class="mt-2"><a class="text-leaf-700 hover:underline" href="tel:+<%= s.number %>"><%= s.display %></a></p>
-  <a href="https://wa.me/<%= s.number %>" target="_blank" rel="noopener" class="inline-block mt-4 bg-[#25D366] text-white text-sm font-semibold px-5 py-2 rounded-full">Écrire sur WhatsApp</a>
+  <p class="mt-2"><a class="inline-flex items-center min-h-11 text-leaf-700 hover:underline" href="tel:+<%= s.number %>"><%= s.display %></a></p>
+  <a href="https://wa.me/<%= s.number %>" target="_blank" rel="noopener" class="inline-flex items-center justify-center min-h-11 mt-2 bg-[#25D366] hover:brightness-95 text-leaf-900 text-sm font-bold px-5 rounded-full">Écrire sur WhatsApp<span class="sr-only"> à <%= s.name %> (s’ouvre dans un nouvel onglet)</span></a>
 </div><% }) %>
 </div>
-<p class="mt-6"><a href="<%= instagram %>" target="_blank" rel="noopener" class="inline-block border border-leaf-600 text-leaf-700 text-sm font-semibold px-5 py-2 rounded-full">📸 Instagram @mbayoumkeurshop</a>
-<a href="<%= facebook %>" target="_blank" rel="noopener" class="inline-block ml-2 border border-leaf-600 text-leaf-700 text-sm font-semibold px-5 py-2 rounded-full">👍 Facebook Mbayoumkeur</a></p></div>
+<p class="mt-6 flex flex-wrap gap-2"><a href="<%= instagram %>" target="_blank" rel="noopener" class="inline-flex items-center min-h-11 border border-leaf-600 text-leaf-700 text-sm font-semibold px-5 rounded-full"><span aria-hidden="true">📸</span>&nbsp;Instagram @mbayoumkeurshop<span class="sr-only"> (s’ouvre dans un nouvel onglet)</span></a>
+<a href="<%= facebook %>" target="_blank" rel="noopener" class="inline-flex items-center min-h-11 border border-leaf-600 text-leaf-700 text-sm font-semibold px-5 rounded-full"><span aria-hidden="true">👍</span>&nbsp;Facebook Mbayoumkeur<span class="sr-only"> (s’ouvre dans un nouvel onglet)</span></a></p></div>
 <%- include('_foot') %>

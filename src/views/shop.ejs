@@ -1,13 +1,13 @@
 <%- include('_head', {cat}) %>
 <div class="max-w-6xl mx-auto px-4 mt-5 md:mt-8 md:grid md:grid-cols-[220px_1fr] md:gap-8">
 <aside class="hidden md:block"><h2 class="font-semibold mb-3">Catégories</h2><ul class="space-y-1 text-sm">
-<li><a href="/boutique" class="<%= !cat ? 'font-bold text-leaf-700' : '' %>">Tout voir</a></li>
-<% categories.forEach(c => { %><li><a class="hover:text-leaf-600 <%= cat===c.name ? 'font-bold text-leaf-700' : '' %>" href="/boutique?categorie=<%= encodeURIComponent(c.name) %>"><%= c.name %> <span class="text-slate-400">(<%= c.count %>)</span></a></li><% }) %></ul></aside>
+<li><a href="/boutique" <%- !cat ? 'aria-current="true"' : '' %> class="<%= !cat ? 'font-bold text-leaf-700' : '' %>">Tout voir</a></li>
+<% categories.forEach(c => { %><li><a class="hover:text-leaf-600 <%= cat===c.name ? 'font-bold text-leaf-700' : '' %>" <%- cat===c.name ? 'aria-current="true"' : '' %> href="/boutique?categorie=<%= encodeURIComponent(c.name) %>"><%= c.name %> <span class="text-slate-600">(<%= c.count %>)</span></a></li><% }) %></ul></aside>
 <section><h1 class="text-xl md:text-2xl font-bold text-leaf-900"><%= cat || 'Toute la boutique' %></h1>
-<p class="text-sm text-slate-500 mb-4"><%= count %> produit(s)<%= q ? ' pour « ' + q + ' »' : '' %><% if (cat || q) { %> · <a href="/boutique" class="text-leaf-700 underline">Tout voir</a><% } %></p>
+<p class="text-sm text-slate-600 mb-4"><%= count %> produit(s)<%= q ? ' pour « ' + q + ' »' : '' %><% if (cat || q) { %> · <a href="/boutique" class="text-leaf-700 underline">Tout voir</a><% } %></p>
 <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4"><% items.forEach(p => { %><%- include('_card', {p}) %><% }) %></div>
-<% if (!items.length) { %><p class="py-16 text-center text-slate-500">Aucun résultat.</p><% } %>
-<% if (pages > 1) { %><div class="flex flex-wrap gap-2 justify-center mt-8">
-<% for (let i=1;i<=pages;i++) { %><a class="w-10 h-10 inline-flex items-center justify-center rounded-full border text-sm <%= i===page ? 'bg-leaf-600 text-white border-leaf-600' : 'hover:bg-leaf-50' %>" href="?<%= new URLSearchParams({ ...(cat?{categorie:cat}:{}), ...(q?{q}:{}), page:i }) %>"><%= i %></a><% } %></div><% } %>
+<% if (!items.length) { %><p class="py-16 text-center text-slate-600">Aucun résultat.</p><% } %>
+<% if (pages > 1) { %><nav aria-label="Pagination" class="flex flex-wrap gap-2 justify-center mt-8">
+<% for (let i=1;i<=pages;i++) { %><a aria-label="Page <%= i %>" <%- i===page ? 'aria-current="page"' : '' %> class="w-11 h-11 inline-flex items-center justify-center rounded-full border text-sm <%= i===page ? 'bg-leaf-600 text-white border-leaf-600' : 'hover:bg-leaf-50' %>" href="?<%= new URLSearchParams({ ...(cat?{categorie:cat}:{}), ...(q?{q}:{}), page:i }) %>"><%= i %></a><% } %></nav><% } %>
 </section></div>
 <%- include('_foot') %>
