@@ -174,9 +174,11 @@ add_action('admin_init', function () {
   }
 });
 
-add_action('current_screen', function ($screen) {
+// Aide contextuelle (pleine de références à WordPress) : retirée juste avant l'affichage
+add_action('in_admin_header', function () {
+  $screen = get_current_screen();
   if ($screen) $screen->remove_help_tabs();
-});
+}, 999);
 
 // Tableau de bord : on retire les blocs WordPress, on met un message de bienvenue
 add_action('wp_dashboard_setup', function () {
