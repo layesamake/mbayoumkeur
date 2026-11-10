@@ -196,42 +196,42 @@ add_action('wp_dashboard_setup', function () {
 /* ------------------------------------------------------------------ */
 function mbk_brand_css(): string {
   $css = <<<'CSS'
-:root{--wp-admin-theme-color:#2f8f4a;--wp-admin-theme-color--rgb:47,143,74;--wp-admin-theme-color-darker-10:#26753c;--wp-admin-theme-color-darker-10--rgb:38,117,60;--wp-admin-theme-color-darker-20:#14401f;--wp-admin-theme-color-darker-20--rgb:20,64,31}
-body.wp-admin{background:#f0f9f1}
-a{color:#26753c}a:hover{color:#14401f}
-#adminmenuback,#adminmenuwrap,#adminmenu{background:#14401f}
-#adminmenu a{color:#dcf0df}
+:root{--wp-admin-theme-color:#3a7d04;--wp-admin-theme-color--rgb:58,125,4;--wp-admin-theme-color-darker-10:#2b6403;--wp-admin-theme-color-darker-10--rgb:43,100,3;--wp-admin-theme-color-darker-20:#04481a;--wp-admin-theme-color-darker-20--rgb:4,72,26}
+body.wp-admin{background:#f2f9ea}
+a{color:#2b6403}a:hover{color:#04481a}
+#adminmenuback,#adminmenuwrap,#adminmenu{background:#04481a}
+#adminmenu a{color:#e1f1cd}
 #adminmenu div.wp-menu-image:before{color:#a8d5b3}
-#adminmenu li.menu-top:hover,#adminmenu li.opensub>a.menu-top,#adminmenu li>a.menu-top:focus{background:#26753c;color:#fff}
+#adminmenu li.menu-top:hover,#adminmenu li.opensub>a.menu-top,#adminmenu li>a.menu-top:focus{background:#2b6403;color:#fff}
 #adminmenu li.menu-top:hover div.wp-menu-image:before,#adminmenu li.opensub>a.menu-top div.wp-menu-image:before{color:#fff}
-#adminmenu li.current a.menu-top,#adminmenu li.wp-has-current-submenu a.wp-has-current-submenu,#adminmenu li.wp-has-current-submenu.opensub a.wp-has-current-submenu{background:#2f8f4a;color:#fff}
+#adminmenu li.current a.menu-top,#adminmenu li.wp-has-current-submenu a.wp-has-current-submenu,#adminmenu li.wp-has-current-submenu.opensub a.wp-has-current-submenu{background:#3a7d04;color:#fff}
 #adminmenu li.wp-has-current-submenu div.wp-menu-image:before,#adminmenu li.current div.wp-menu-image:before{color:#fff}
-#adminmenu .wp-submenu,#adminmenu .wp-has-current-submenu .wp-submenu,#adminmenu a.wp-has-current-submenu:focus+.wp-submenu{background:#0f3018}
+#adminmenu .wp-submenu,#adminmenu .wp-has-current-submenu .wp-submenu,#adminmenu a.wp-has-current-submenu:focus+.wp-submenu{background:#033514}
 #adminmenu .wp-submenu a{color:#c9e6cf}
 #adminmenu .wp-submenu a:hover,#adminmenu .wp-submenu a:focus,#adminmenu .wp-submenu li.current a{color:#f2a900}
-#adminmenu .wp-submenu .wp-submenu-head,#adminmenu .wp-has-current-submenu .wp-submenu .wp-submenu-head{background:#2f8f4a;color:#fff}
-#adminmenu .mbk-count{display:inline-block;float:none;background:#2f8f4a;color:#fff;border-radius:9px;padding:0 7px;font-size:11px;line-height:17px;margin-left:6px;vertical-align:middle}
-#adminmenu .wp-submenu li.current .mbk-count,#adminmenu .wp-submenu a:hover .mbk-count{background:#f2a900;color:#14401f}
+#adminmenu .wp-submenu .wp-submenu-head,#adminmenu .wp-has-current-submenu .wp-submenu .wp-submenu-head{background:#3a7d04;color:#fff}
+#adminmenu .mbk-count{display:inline-block;float:none;background:#3a7d04;color:#fff;border-radius:9px;padding:0 7px;font-size:11px;line-height:17px;margin-left:6px;vertical-align:middle}
+#adminmenu .wp-submenu li.current .mbk-count,#adminmenu .wp-submenu a:hover .mbk-count{background:#f2a900;color:#04481a}
 #collapse-button,#collapse-button:hover{color:#a8d5b3}
-#wpadminbar{background:#14401f}
-#wpadminbar .ab-item,#wpadminbar a.ab-item,#wpadminbar #adminbarsearch:before{color:#dcf0df}
-#wpadminbar .ab-top-menu>li:hover>.ab-item,#wpadminbar .ab-top-menu>li.hover>.ab-item{background:#26753c;color:#fff}
-.wp-core-ui .button-primary{background:#2f8f4a;border-color:#26753c;color:#fff}
-.wp-core-ui .button-primary:hover,.wp-core-ui .button-primary:focus{background:#26753c;border-color:#14401f;color:#fff}
-.wp-core-ui .button,.wp-core-ui .button-secondary{color:#26753c;border-color:#2f8f4a}
-.wp-core-ui .button:hover{background:#f0f9f1;border-color:#26753c;color:#14401f}
+#wpadminbar{background:#04481a}
+#wpadminbar .ab-item,#wpadminbar a.ab-item,#wpadminbar #adminbarsearch:before{color:#e1f1cd}
+#wpadminbar .ab-top-menu>li:hover>.ab-item,#wpadminbar .ab-top-menu>li.hover>.ab-item{background:#2b6403;color:#fff}
+.wp-core-ui .button-primary{background:#3a7d04;border-color:#2b6403;color:#fff}
+.wp-core-ui .button-primary:hover,.wp-core-ui .button-primary:focus{background:#2b6403;border-color:#04481a;color:#fff}
+.wp-core-ui .button,.wp-core-ui .button-secondary{color:#2b6403;border-color:#3a7d04}
+.wp-core-ui .button:hover{background:#f2f9ea;border-color:#2b6403;color:#04481a}
 .wrap h1.wp-heading-inline:before{content:"🌿 "}
-.notice-info{border-left-color:#2f8f4a}
-#wpfooter,#wpfooter a{color:#26753c}
-body.login{background:#f0f9f1}
+.notice-info{border-left-color:#3a7d04}
+#wpfooter,#wpfooter a{color:#2b6403}
+body.login{background:#f2f9ea}
 .login #login h1 a{background:url({{LOGO}}) center/contain no-repeat!important;width:300px;height:92px;text-indent:-9999px;font-size:0;overflow:hidden;box-shadow:none}
 #adminmenu::before{content:"";display:block;height:62px;margin:10px 10px 14px;padding:6px;box-sizing:border-box;border-radius:12px;background:#fff url({{LOGO}}) center/contain no-repeat;background-origin:content-box}
 .folded #adminmenu::before{height:36px;margin:8px 2px;padding:2px;background-image:url({{ICON}})}
 @media screen and (max-width:960px){.auto-fold #adminmenu::before{height:36px;margin:8px 2px;padding:2px;background-image:url({{ICON}})}}
-.login form{border-radius:14px;border-color:#dcf0df}
+.login form{border-radius:14px;border-color:#e1f1cd}
 .login .language-switcher{display:none}
-.login #nav a,.login #backtoblog a{color:#26753c}
-.login .button-primary{background:#2f8f4a;border-color:#26753c}
+.login #nav a,.login #backtoblog a{color:#2b6403}
+.login .button-primary{background:#3a7d04;border-color:#2b6403}
 CSS;
   if (mbk_is_farmer()) {
     // Profil simplifié : on ne garde que l'essentiel
