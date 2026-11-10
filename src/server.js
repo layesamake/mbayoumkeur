@@ -2,6 +2,7 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getCatalog } from './wp.js';
+import { shopView } from './shop.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_NAME = process.env.SITE_NAME || 'Mbayoumkeur';
@@ -46,14 +47,8 @@ app.get('/', (req, res) => {
   res.render('home', { home: true, featured, latest: req.products.slice(0, 8), total: req.products.length });
 });
 app.get('/boutique', (req, res) => {
-  const q = String(req.query.q || '').trim();
-  const cat = String(req.query.categorie || '');
-  const page = Math.max(1, parseInt(req.query.page) || 1);
-  let list = req.products;
-  if (cat) list = list.filter((p) => p.category === cat);
-  if (q) list = list.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()));
-  const pages = Math.max(1, Math.ceil(list.length / PAGE));
-  res.render('shop', { items: list.slice((page - 1) * PAGE, page * PAGE), q, cat, page, pages, count: list.length });
+  const v = shopView(req.products, req.query);
+  res.render('shop', { v, q: v.f.q, cat: v.f.cats.length === 1 ? v.f.cats[0] : undefined, noHeaderSearch: true, title: 'Boutique' });
 });
 app.get('/produit/:slug', (req, res) => {
   const p = req.products.find((x) => x.slug === req.params.slug);

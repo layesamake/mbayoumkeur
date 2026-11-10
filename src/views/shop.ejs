@@ -1,13 +1,46 @@
-<%- include('_head', {cat}) %>
-<div class="max-w-6xl mx-auto px-4 mt-5 md:mt-8 md:grid md:grid-cols-[220px_1fr] md:gap-8">
-<aside class="hidden md:block"><h2 class="font-semibold mb-3">Catégories</h2><ul class="space-y-1 text-sm">
-<li><a href="/boutique" <%- !cat ? 'aria-current="true"' : '' %> class="<%= !cat ? 'font-bold text-leaf-700' : '' %>">Tout voir</a></li>
-<% categories.forEach(c => { %><li><a class="hover:text-leaf-600 <%= cat===c.name ? 'font-bold text-leaf-700' : '' %>" <%- cat===c.name ? 'aria-current="true"' : '' %> href="/boutique?categorie=<%= encodeURIComponent(c.name) %>"><%= c.name %> <span class="text-slate-600">(<%= c.count %>)</span></a></li><% }) %></ul></aside>
-<section><h1 class="text-xl md:text-2xl font-bold text-leaf-900"><%= cat || 'Toute la boutique' %></h1>
-<p class="text-sm text-slate-600 mb-4"><%= count %> produit(s)<%= q ? ' pour « ' + q + ' »' : '' %><% if (cat || q) { %> · <a href="/boutique" class="text-leaf-700 underline">Tout voir</a><% } %></p>
-<div class="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4"><% items.forEach(p => { %><%- include('_card', {p}) %><% }) %></div>
-<% if (!items.length) { %><p class="py-16 text-center text-slate-600">Aucun résultat.</p><% } %>
-<% if (pages > 1) { %><nav aria-label="Pagination" class="flex flex-wrap gap-2 justify-center mt-8">
-<% for (let i=1;i<=pages;i++) { %><a aria-label="Page <%= i %>" <%- i===page ? 'aria-current="page"' : '' %> class="w-11 h-11 inline-flex items-center justify-center rounded-full border text-sm <%= i===page ? 'bg-leaf-600 text-white border-leaf-600' : 'hover:bg-leaf-50' %>" href="?<%= new URLSearchParams({ ...(cat?{categorie:cat}:{}), ...(q?{q}:{}), page:i }) %>"><%= i %></a><% } %></nav><% } %>
-</section></div>
-<%- include('_foot') %>
+<%- include('_head', {cat, noHeaderSearch: true}) %>
+<script>document.documentElement.classList.add('js')</script>
+
+<%# Bandeau : le vert profond du logo, les sillons en bas, et la recherche en grand %>
+<section class="relative overflow-hidden bg-leaf-900 text-white">
+  <div class="max-w-6xl mx-auto px-5 pt-8 pb-20 md:pt-12 md:pb-28">
+    <h1 class="font-display font-extrabold text-4xl md:text-6xl leading-none tracking-tight">La boutique</h1>
+    <p class="mt-3 text-leaf-100 text-lg max-w-[46ch]">Plants, arbres fruitiers, terreaux et accessoires. Filtrez, ajoutez à votre sélection, commandez sur WhatsApp.</p>
+    <form action="/boutique" method="get" role="search" id="search-form" class="mt-6 max-w-2xl">
+      <label for="q" class="sr-only">Rechercher une plante, un terreau, un accessoire</label>
+      <div class="flex items-center gap-2 bg-white rounded-full p-1.5 pl-5 shadow-[0_6px_0_rgba(0,0,0,.18)] focus-within:ring-4 focus-within:ring-carrot">
+        <svg class="shrink-0 w-6 h-6 text-leaf-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+        <input id="q" form="filters-form" name="q" type="search" value="<%= v.f.q %>" autocomplete="off" placeholder="Menthe, manguier, terreau, arrosoir…" class="flex-1 min-w-0 h-12 bg-transparent text-leaf-900 placeholder:text-slate-600 text-lg focus:outline-none">
+        <button form="filters-form" type="submit" class="shrink-0 h-12 px-6 rounded-full bg-carrot text-leaf-900 font-bold text-lg hover:brightness-110">Chercher</button>
+      </div>
+    </form>
+  </div>
+  <svg class="absolute bottom-0 inset-x-0 w-full h-10 md:h-16" viewBox="0 0 1440 96" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 44 C240 0 480 92 720 44 S1200 0 1440 44 V96 H0Z" fill="#479a05"/>
+    <path d="M0 66 C260 22 520 104 780 62 S1220 26 1440 66 V96 H0Z" fill="#ffffff"/>
+  </svg>
+</section>
+
+<div class="max-w-6xl mx-auto px-5 mt-4 lg:mt-6 lg:grid lg:grid-cols-[19.5rem_1fr] lg:gap-10 lg:items-start">
+
+  <%- include('_filters', {v}) %>
+
+  <section aria-labelledby="results-title" class="min-w-0">
+    <div class="flex items-center gap-3 pb-4">
+      <button type="button" data-open-filters aria-expanded="false" aria-controls="filters" class="js-only lg:!hidden items-center gap-2 min-h-11 px-5 rounded-full bg-leaf-900 text-white font-semibold">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+        Filtres<span data-live="badge" class="contents"><% const n = v.chips.length - (v.f.q ? 1 : 0); if (n) { %><span class="ml-0.5 min-w-6 h-6 px-1.5 inline-flex items-center justify-center rounded-full bg-carrot text-leaf-900 text-sm font-bold"><%= n %></span><% } %></span>
+      </button>
+      <h2 id="results-title" class="sr-only">Résultats</h2>
+      <div class="ml-auto flex items-center gap-2">
+        <label for="tri" class="text-sm text-slate-600 hidden sm:block">Trier par</label>
+        <select id="tri" form="filters-form" name="tri" class="min-h-11 rounded-full border-2 border-leaf-100 bg-leaf-50 text-leaf-900 font-semibold pl-4 pr-9 focus:outline-none focus:ring-2 focus:ring-leaf-600">
+          <% Object.entries(v.sorts).forEach(([k, label]) => { %><option value="<%= k %>" <%= v.f.sort === k ? 'selected' : '' %>><%= label %></option><% }) %>
+        </select>
+      </div>
+    </div>
+
+    <div id="results" data-live="results"><%- include('_results', {v}) %></div>
+  </section>
+</div>
+<%- include('_foot', {extraScript: '/shop.js'}) %>

@@ -13,4 +13,5 @@
 </nav>
 <div id="live" class="sr-only" role="status" aria-live="polite"></div>
 <script src="/app.js" defer></script>
+<% if (typeof extraScript !== 'undefined') { %><script src="<%= extraScript %>" defer></script><% } %>
 </body></html>

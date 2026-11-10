@@ -1,0 +1,25 @@
+<div class="flex flex-wrap items-center gap-x-4 gap-y-2" data-count="<%= v.count %>">
+  <p class="text-slate-700"><strong class="font-display text-2xl text-leaf-900"><%= v.count %></strong> produit<%= v.count > 1 ? 's' : '' %><% if (v.narrowed) { %> sur <%= v.total %><% } %></p>
+  <% if (v.chips.length) { %>
+  <ul class="flex flex-wrap items-center gap-2" aria-label="Filtres actifs">
+    <% v.chips.forEach((c) => { %><li><a href="<%= c.href %>" data-nav class="inline-flex items-center gap-1.5 min-h-9 pl-3.5 pr-2.5 rounded-full bg-sun-soft text-leaf-900 text-sm font-bold hover:brightness-95"><%= c.label %><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg><span class="sr-only">retirer ce filtre</span></a></li><% }) %>
+    <li><a href="<%= v.reset %>" data-nav class="inline-flex items-center min-h-9 px-2 text-sm font-semibold text-leaf-700 underline underline-offset-4 hover:text-leaf-900">Tout effacer</a></li>
+  </ul>
+  <% } %>
+</div>
+
+<% if (v.items.length) { %>
+<div class="mt-5 grid grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4"><% v.items.forEach(p => { %><%- include('_card', {p}) %><% }) %></div>
+<% } else { %>
+<div class="mt-6 rounded-3xl border-2 border-dashed border-leaf-100 bg-leaf-50 px-6 py-14 text-center">
+  <p class="font-display font-extrabold text-2xl text-leaf-900">Rien ne correspond à ces critères</p>
+  <p class="mt-2 text-slate-700 max-w-[44ch] mx-auto">Élargissez la fourchette de prix, retirez une catégorie ou essayez un mot plus court.</p>
+  <a href="<%= v.reset %>" data-nav class="mt-6 inline-flex items-center justify-center min-h-12 px-7 rounded-full bg-leaf-600 hover:bg-leaf-700 text-white font-bold">Effacer tous les filtres</a>
+</div>
+<% } %>
+
+<% if (v.pages > 1) { %>
+<nav aria-label="Pagination" class="flex flex-wrap gap-2 justify-center mt-8">
+  <% for (let i = 1; i <= v.pages; i++) { %><a data-nav data-page aria-label="Page <%= i %>" <%- i === v.page ? 'aria-current="page"' : '' %> class="w-11 h-11 inline-flex items-center justify-center rounded-full border text-sm <%= i === v.page ? 'bg-leaf-600 text-white border-leaf-600' : 'hover:bg-leaf-50' %>" href="<%= v.href(i) %>"><%= i %></a><% } %>
+</nav>
+<% } %>
