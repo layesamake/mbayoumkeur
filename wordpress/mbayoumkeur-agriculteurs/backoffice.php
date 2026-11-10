@@ -224,8 +224,10 @@ a{color:#26753c}a:hover{color:#14401f}
 .notice-info{border-left-color:#2f8f4a}
 #wpfooter,#wpfooter a{color:#26753c}
 body.login{background:#f0f9f1}
-.login #login h1 a{background:none!important;width:auto;height:auto;text-indent:0;font-size:0;line-height:1;overflow:visible;box-shadow:none}
-.login #login h1 a:after{content:"🌿 Mbayoumkeur";font-size:30px;font-weight:700;color:#26753c}
+.login #login h1 a{background:url({{LOGO}}) center/contain no-repeat!important;width:300px;height:92px;text-indent:-9999px;font-size:0;overflow:hidden;box-shadow:none}
+#adminmenu::before{content:"";display:block;height:62px;margin:10px 10px 14px;padding:6px;box-sizing:border-box;border-radius:12px;background:#fff url({{LOGO}}) center/contain no-repeat;background-origin:content-box}
+.folded #adminmenu::before{height:36px;margin:8px 2px;padding:2px;background-image:url({{ICON}})}
+@media screen and (max-width:960px){.auto-fold #adminmenu::before{height:36px;margin:8px 2px;padding:2px;background-image:url({{ICON}})}}
 .login form{border-radius:14px;border-color:#dcf0df}
 .login .language-switcher{display:none}
 .login #nav a,.login #backtoblog a{color:#26753c}
@@ -235,7 +237,14 @@ CSS;
     // Profil simplifié : on ne garde que l'essentiel
     $css .= '.user-rich-editing-wrap,.user-syntax-highlighting-wrap,.user-comment-shortcuts-wrap,.user-admin-bar-front-wrap,.user-admin-color-wrap,.user-url-wrap,.user-description-wrap,.application-passwords,.user-language-wrap{display:none!important}';
   }
-  return $css;
+  $base = (defined('WPMU_PLUGIN_URL') ? WPMU_PLUGIN_URL : content_url('mu-plugins')) . '/mbayoumkeur-agriculteurs/assets/';
+  return str_replace(['{{LOGO}}', '{{ICON}}'], [$base . 'logo.png', $base . 'icon.png'], $css);
 }
+function mbk_favicon() {
+  $base = (defined('WPMU_PLUGIN_URL') ? WPMU_PLUGIN_URL : content_url('mu-plugins')) . '/mbayoumkeur-agriculteurs/assets/';
+  echo '<link rel="icon" type="image/png" href="' . esc_url($base . 'icon.png') . '">';
+}
+add_action('admin_head', 'mbk_favicon', 99);
+add_action('login_head', 'mbk_favicon', 99);
 add_action('admin_head', function () { echo '<style id="mbk-brand">' . mbk_brand_css() . '</style>'; });
 add_action('login_head', function () { echo '<style id="mbk-brand">' . mbk_brand_css() . '</style>'; });
