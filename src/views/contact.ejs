@@ -1,14 +1,39 @@
 <%- include('_head', {title:'Contact', description:'Contactez Mbayoumkeur par téléphone ou WhatsApp : deux points de vente, Thiès Mbambara et Grand Mbour.'}) %>
-<div class="max-w-3xl mx-auto px-4 mt-12"><h1 class="text-3xl font-bold text-leaf-900">Nous contacter</h1>
-<p class="mt-2 text-slate-600">Deux points de vente, joignables par téléphone et WhatsApp.</p>
-<div class="grid sm:grid-cols-2 gap-4 mt-8">
-<% shops.forEach(s => { %>
-<div class="border rounded-2xl p-5">
-  <h2 class="font-semibold text-leaf-900"><%= s.name %></h2>
-  <p class="mt-2"><a class="inline-flex items-center min-h-11 text-leaf-700 hover:underline" href="tel:+<%= s.number %>"><%= s.display %></a></p>
-  <a href="https://wa.me/<%= s.number %>" target="_blank" rel="noopener" class="inline-flex items-center justify-center min-h-11 mt-2 bg-[#25D366] hover:brightness-95 text-leaf-900 text-sm font-bold px-5 rounded-full">Écrire sur WhatsApp<span class="sr-only"> à <%= s.name %> (s’ouvre dans un nouvel onglet)</span></a>
-</div><% }) %>
-</div>
-<p class="mt-6 flex flex-wrap gap-2"><a href="<%= instagram %>" target="_blank" rel="noopener" class="inline-flex items-center min-h-11 border border-leaf-600 text-leaf-700 text-sm font-semibold px-5 rounded-full"><span aria-hidden="true">📸</span>&nbsp;Instagram @mbayoumkeurshop<span class="sr-only"> (s’ouvre dans un nouvel onglet)</span></a>
-<a href="<%= facebook %>" target="_blank" rel="noopener" class="inline-flex items-center min-h-11 border border-leaf-600 text-leaf-700 text-sm font-semibold px-5 rounded-full"><span aria-hidden="true">👍</span>&nbsp;Facebook Mbayoumkeur<span class="sr-only"> (s’ouvre dans un nouvel onglet)</span></a></p></div>
+
+<section class="max-w-6xl mx-auto px-5 pt-10 md:pt-16">
+  <h1 class="font-display font-extrabold text-4xl md:text-6xl text-leaf-900 leading-[1.02] tracking-tight max-w-[16ch]">Une question sur vos plantes&nbsp;?</h1>
+  <p class="mt-5 text-lg md:text-xl text-slate-700 leading-relaxed max-w-[46ch]">Un conseil, une quantité, la livraison : écrivez sur WhatsApp ou appelez le point de vente le plus proche de vous.</p>
+</section>
+
+<%# Les deux points de vente : un grand panneau chacun, vert profond et jaune soleil comme le logo %>
+<section class="max-w-6xl mx-auto px-5 mt-9 md:mt-12 grid md:grid-cols-2 gap-4 md:gap-6" aria-label="Points de vente">
+  <% shops.forEach((s, i) => { const dark = i % 2 === 0;
+     const wa = 'https://wa.me/' + s.number + '?text=' + encodeURIComponent('Bonjour ' + siteName + ', j’ai une question : '); %>
+  <article class="relative overflow-hidden rounded-[2rem] p-7 md:p-10 flex flex-col <%= dark ? 'bg-leaf-900 text-white' : 'bg-sun-soft text-leaf-900' %>">
+    <svg class="absolute inset-x-0 bottom-0 w-full h-24 opacity-[.14]" viewBox="0 0 400 96" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M0 40 C80 10 140 70 200 40 S320 10 400 40"/><path d="M0 62 C80 32 140 92 200 62 S320 32 400 62"/><path d="M0 84 C80 54 140 114 200 84 S320 54 400 84"/></svg>
+    <h2 class="relative font-display font-bold text-2xl md:text-3xl leading-tight"><%= s.name %></h2>
+    <a href="tel:+<%= s.number %>" class="relative mt-6 md:mt-8 self-start font-display font-extrabold text-[length:clamp(1.55rem,3.6vw,3rem)] whitespace-nowrap leading-none tabular-nums tracking-tight hover:underline underline-offset-8 decoration-4 <%= dark ? 'decoration-carrot' : 'decoration-leaf-600' %>" aria-label="Appeler <%= s.name %> au <%= s.display %>"><%= s.display %></a>
+    <div class="relative mt-8 md:mt-10 flex flex-wrap gap-3">
+      <a href="<%= wa %>" target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-2 min-h-12 px-6 rounded-full bg-[#25D366] text-leaf-900 text-lg font-bold hover:brightness-95 transition"><%- include('_icon', {name:'chat'}) %>Écrire sur WhatsApp<span class="sr-only"> à <%= s.name %> (s’ouvre dans un nouvel onglet)</span></a>
+      <a href="tel:+<%= s.number %>" class="inline-flex items-center justify-center gap-2 min-h-12 px-6 rounded-full border-2 text-lg font-semibold transition <%= dark ? 'border-white/60 hover:bg-white/10' : 'border-leaf-900/60 hover:bg-leaf-900/10' %>"><%- include('_icon', {name:'phone'}) %>Appeler<span class="sr-only"> <%= s.name %></span></a>
+    </div>
+  </article>
+  <% }) %>
+</section>
+
+<section class="max-w-6xl mx-auto px-5 mt-10 md:mt-14 grid gap-4 md:grid-cols-[1.1fr_1fr] md:gap-6 items-stretch">
+  <div class="rounded-3xl bg-leaf-50 border border-leaf-100 p-6 md:p-8">
+    <h2 class="font-display font-extrabold text-2xl text-leaf-900">Retrouvez-nous en ligne</h2>
+    <p class="mt-1.5 text-slate-700 max-w-[40ch]">Suivez Mbayoumkeur sur les réseaux sociaux.</p>
+    <div class="mt-5 flex flex-wrap gap-3">
+      <a href="<%= instagram %>" target="_blank" rel="noopener" class="inline-flex items-center gap-2.5 min-h-12 pl-4 pr-5 rounded-full bg-leaf-900 text-white font-semibold hover:bg-leaf-700 transition"><%- include('_icon', {name:'instagram'}) %>@mbayoumkeurshop<span class="sr-only"> sur Instagram (s’ouvre dans un nouvel onglet)</span></a>
+      <a href="<%= facebook %>" target="_blank" rel="noopener" class="inline-flex items-center gap-2.5 min-h-12 pl-4 pr-5 rounded-full border-2 border-leaf-900 text-leaf-900 font-semibold hover:bg-leaf-900 hover:text-white transition"><%- include('_icon', {name:'facebook'}) %>Mbayoumkeur<span class="sr-only"> sur Facebook (s’ouvre dans un nouvel onglet)</span></a>
+    </div>
+  </div>
+  <div class="rounded-3xl border-2 border-dashed border-leaf-600 p-6 md:p-8 flex flex-col justify-center">
+    <h2 class="font-display font-extrabold text-2xl text-leaf-900">Vous savez déjà ce qu’il vous faut&nbsp;?</h2>
+    <p class="mt-1.5 text-slate-700 max-w-[40ch]">Composez votre sélection dans la boutique, elle part en un message WhatsApp.</p>
+    <a href="/boutique" class="mt-5 self-start inline-flex items-center gap-2 min-h-12 px-6 rounded-full bg-carrot text-leaf-900 text-lg font-bold hover:brightness-110 transition">Voir la boutique<%- include('_icon', {name:'arrow'}) %></a>
+  </div>
+</section>
 <%- include('_foot') %>
