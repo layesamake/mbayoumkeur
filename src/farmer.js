@@ -4,6 +4,7 @@
 import express from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
+import { describePlant, aiEnabled } from './ai.js';
 
 const WP_URL = (process.env.WP_URL || 'https://cms.mbayoumkeur.shop').replace(/\/$/, '');
 const COOKIE = 'mbk_agri';
@@ -72,6 +73,16 @@ const tooMany = (ip) => {
   return list.length >= 12;
 };
 
+// Assistant : 6 demandes par minute et 30 par jour et par agriculteur (chaque demande coûte un appel au modèle)
+const aiUse = new Map();
+const aiLimit = (id) => {
+  const now = Date.now();
+  const list = (aiUse.get(id) || []).filter((t) => now - t < 24 * 3600 * 1000);
+  if (list.filter((t) => now - t < 60 * 1000).length >= 6) throw new HttpError(429, 'Doucement : réessayez dans une minute.', 'ia_occupe');
+  if (list.length >= 30) throw new HttpError(429, 'Vous avez atteint la limite de descriptions pour aujourd’hui. Rédigez celle-ci vous-même.', 'ia_limite');
+  list.push(now); aiUse.set(id, list);
+};
+
 const FIELDS = ['titre', 'categorie', 'prix', 'conditionnement', 'disponible', 'description', 'conseils', 'statut'];
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 }, fileFilter: (req, file, cb) => (/^image\/(jpeg|png|webp)$/.test(file.mimetype) ? cb(null, true) : cb(new HttpError(415, 'Format de photo non accepté (JPEG, PNG ou WebP).', 'photo'))) });
 
@@ -119,7 +130,18 @@ export function farmerRouter() {
 
   api.post('/logout', (req, res) => { res.clearCookie(COOKIE, { path: '/agriculteur' }); res.json({ ok: true }); });
   api.get('/session', auth, (req, res) => res.json({ nom: req.sess.nom }));
-  api.get('/config', auth, wrap(async (req, res) => res.json(await wp(req.sess, 'GET', '/config'))));
+  api.get('/config', auth, wrap(async (req, res) => res.json({ ...(await wp(req.sess, 'GET', '/config')), ia: aiEnabled() })));
+  // Description proposée par l'assistant : photo (facultative) + nom ; rien n'est enregistré, le client remplit le formulaire
+  api.post('/ia/description', auth, upload.single('photo'), wrap(async (req, res) => {
+    const line = (v, n) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, n);
+    const titre = line(req.body?.titre, 80);
+    if (titre.length < 2) throw new HttpError(400, 'Indiquez d’abord le nom de la plante.', 'champ');
+    aiLimit(req.sess.id);
+    res.json(await describePlant({
+      image: req.file?.buffer, mime: req.file?.mimetype, titre,
+      categorie: line(req.body?.categorie_label, 60), conditionnement: line(req.body?.conditionnement_label, 30),
+    }));
+  }));
   api.get('/plantes', auth, wrap(async (req, res) => res.json(await wp(req.sess, 'GET', '/plantes'))));
   api.post('/plantes', auth, upload.single('photo'), wrap(async (req, res) => res.status(201).json(await wp(req.sess, 'POST', '/plantes', { form: toForm(req) }))));
   api.post('/plantes/:id(\\d+)', auth, upload.single('photo'), wrap(async (req, res) => res.json(await wp(req.sess, 'POST', `/plantes/${req.params.id}`, { form: toForm(req) }))));
@@ -130,7 +152,7 @@ export function farmerRouter() {
 
   api.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) return res.status(413).json({ message: 'Photo trop lourde (8 Mo maximum).', code: 'photo' });
-    if (err instanceof HttpError) {
+    if (err instanceof HttpError || err?.expose) {
       if (err.code === 'session') res.clearCookie(COOKIE, { path: '/agriculteur' });
       return res.status(err.status).json({ message: err.message, code: err.code });
     }

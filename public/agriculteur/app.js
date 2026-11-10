@@ -13,6 +13,7 @@
 
   const ICON = {
     camera: (c = 'w-8 h-8') => `<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.4h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.8"/></svg>`,
+    spark: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9L12 2Zm7 12 .9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9L19 14ZM5 15l.7 2 2 .7-2 .7L5 20.4l-.7-2-2-.7 2-.7L5 15Z"/></svg>`,
     back: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>`,
     leaf: `<svg class="w-14 h-14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 2C9 2 3 6 3 12c0 1.5.5 2.8 1.3 3.8C5 12 8 9 12 7.5 8.5 9.5 6 12.5 5 17c.5.2 1 .3 1.5.3 6 0 10.5-5 10.5-11.5V2Z"/></svg>`,
   };
@@ -230,6 +231,12 @@
         <span class="switch peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-carrot" aria-hidden="true"></span></label></section>
 
       <section><label for="f-desc" class="${lab}">Description</label>
+        ${cfg.ia ? `
+        <div class="mb-3">
+          <button type="button" id="ia" class="w-full flex items-center justify-center gap-2.5 min-h-14 rounded-2xl border-2 border-leaf-900 bg-white text-leaf-900 font-display font-bold text-xl active:bg-leaf-100 disabled:opacity-60">${ICON.spark}<span id="ia-label">Décrire avec l’assistant</span></button>
+          <p id="ia-note" role="status" class="mt-2 text-base text-slate-700">Il lit votre photo et le nom, puis propose un texte que vous corrigez.</p>
+          <p id="ia-warn" role="status" class="hidden mt-2 rounded-2xl bg-sun-soft px-4 py-3 font-semibold"></p>
+        </div>` : ''}
         <textarea id="f-desc" rows="4" maxlength="1500" placeholder="Variété, taille, état des plants…" class="w-full rounded-2xl border-2 border-leaf-100 bg-white p-4 text-xl leading-snug focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">${esc(f.description)}</textarea></section>
 
       <details class="rounded-2xl bg-white border-2 border-leaf-100" ${f.conseils ? 'open' : ''}>
@@ -272,6 +279,7 @@
       } catch { fail('Cette photo n’a pas pu être lue. Essayez-en une autre.'); }
       f.busy = false; $('#photo').innerHTML = photoBlock();
     });
+    $('#ia')?.addEventListener('click', describe);
     document.querySelectorAll('[data-save]').forEach((b) => b.addEventListener('click', () => save(b.dataset.save)));
   }
 
@@ -311,6 +319,34 @@
       if (e.code === 'session') return sessionLost();
       fail(e.message);
     }
+  }
+
+  /* ----- Assistant : propose description et conseils (l'agriculteur relit toujours) ----- */
+  async function describe() {
+    const f = state.form, btn = $('#ia'), label = $('#ia-label'), note = $('#ia-note'), warn = $('#ia-warn');
+    warn.classList.add('hidden');
+    if (f.titre.trim().length < 2) { note.textContent = 'Indiquez d’abord le nom de la plante.'; $('#f-titre').focus(); return; }
+    const replacing = f.description.trim().length > 0;
+    if (replacing && !confirm('Remplacer votre description par la proposition de l’assistant ?')) return;
+    btn.disabled = true; label.textContent = 'L’assistant rédige…';
+    note.textContent = f.blob ? 'Il regarde votre photo.' : 'Sans photo, la description sera plus générale.';
+    const fd = new FormData();
+    fd.append('titre', f.titre.trim());
+    const cat = state.config.univers.find((u) => u.slug === f.categorie), unit = state.config.conditionnements.find((u) => u.valeur === f.conditionnement);
+    if (cat) fd.append('categorie_label', cat.label);
+    if (unit) fd.append('conditionnement_label', unit.label);
+    if (f.blob) fd.append('photo', f.blob, 'plante.' + (f.blob.type === 'image/webp' ? 'webp' : 'jpg'));
+    try {
+      const out = await upload('/ia/description', fd, () => {});
+      f.description = out.description; $('#f-desc').value = out.description;
+      if (out.conseils && (replacing || !f.conseils.trim())) { f.conseils = out.conseils; const c = $('#f-conseils'); c.value = out.conseils; c.closest('details').open = true; }
+      note.textContent = 'Proposition de l’assistant : relisez-la et corrigez-la avant de publier.';
+      if (out.remarque) { warn.textContent = out.remarque; warn.classList.remove('hidden'); }
+      label.textContent = 'Proposer une autre description';
+    } catch (e) {
+      if (e.code === 'session') return sessionLost();
+      note.textContent = e.message; label.textContent = 'Décrire avec l’assistant';
+    } finally { btn.disabled = false; }
   }
 
   /* ---------------- Actions de la liste ---------------- */
