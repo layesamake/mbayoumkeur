@@ -12,4 +12,40 @@
   @keyframes home-rise { from { opacity: 0; transform: translateY(14px); } }
   @keyframes home-pop { from { opacity: 0; transform: scale(.82) rotate(-5deg); } }
   @media (prefers-reduced-motion: reduce) { .home-rise, .home-pop { animation: none; } }
+
+  /* ---- Boutique : éléments réservés au JavaScript ---- */
+  .js-only { display: none; }
+  .js .js-only { display: inline-flex; }
+  .js .js-hide { display: none; }
+  .sheet-foot { display: none; }
+
+  /* ---- Interrupteur ---- */
+  .switch { position: relative; flex-shrink: 0; width: 3.25rem; height: 2rem; border-radius: 9999px; background: #e1f1cd; border: 2px solid #3a7d04; transition: background .2s; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 1.5rem; height: 1.5rem; border-radius: 9999px; background: #3a7d04; transition: transform .2s, background .2s; }
+  input:checked + .switch { background: #3a7d04; }
+  input:checked + .switch::after { transform: translateX(1.25rem); background: #fff; }
+
+  /* ---- Curseur de prix à deux poignées (13 px = demi-poignée, pour que le remplissage suive le pouce) ---- */
+  .range { position: relative; height: 32px; margin-top: 6px; }
+  .range-track { position: absolute; left: 0; right: 0; top: 50%; height: 8px; margin-top: -4px; border-radius: 9999px; background: #e1f1cd; }
+  .range-fill { position: absolute; top: 0; bottom: 0; border-radius: 9999px; background: #3a7d04;
+    left: calc(13px + (100% - 26px) * var(--f, 0)); right: calc(100% - 13px - (100% - 26px) * var(--t, 1)); }
+  .range input[type=range] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+  .range input[type=range]::-webkit-slider-runnable-track { background: transparent; height: 100%; }
+  .range input[type=range]::-moz-range-track { background: transparent; height: 100%; }
+  .range input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 26px; height: 26px; margin-top: 3px; border-radius: 9999px; background: #fff; border: 5px solid #3a7d04; box-shadow: 0 3px 0 rgba(4,72,26,.25); cursor: grab; }
+  .range input[type=range]::-moz-range-thumb { pointer-events: auto; width: 16px; height: 16px; border-radius: 9999px; background: #fff; border: 5px solid #3a7d04; box-shadow: 0 3px 0 rgba(4,72,26,.25); cursor: grab; }
+  .range input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.08); }
+  .range input[type=range]:focus-visible::-webkit-slider-thumb { outline: 3px solid #fc7404; outline-offset: 2px; }
+  .range input[type=range]:focus-visible::-moz-range-thumb { outline: 3px solid #fc7404; outline-offset: 2px; }
+
+  /* ---- Tiroir de filtres sur mobile ---- */
+  @media (max-width: 1023px) {
+    .js .filters-panel { position: fixed; inset: auto 0 0 0; z-index: 50; max-height: 88vh; overflow-y: auto; overscroll-behavior: contain;
+      border-radius: 1.75rem 1.75rem 0 0; box-shadow: 0 -12px 40px rgba(4,72,26,.3); margin: 0;
+      transform: translateY(105%); visibility: hidden; transition: transform .32s cubic-bezier(.2,.8,.2,1), visibility .32s; }
+    .js .filters-panel[data-open] { transform: none; visibility: visible; }
+    .js .sheet-foot { display: block; }
+  }
+  @media (prefers-reduced-motion: reduce) { .js .filters-panel { transition: none; } }
 }

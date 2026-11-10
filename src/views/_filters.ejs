@@ -1,0 +1,90 @@
+<%# Panneau de filtres : colonne collante sur ordinateur, tiroir plein écran par le bas sur mobile %>
+<div data-backdrop class="js-only fixed inset-0 z-40 bg-leaf-900/60 opacity-0 pointer-events-none transition-opacity lg:!hidden" aria-hidden="true"></div>
+<form id="filters-form" action="/boutique" method="get" data-filters
+  class="filters-panel bg-white lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:rounded-3xl lg:border-2 lg:border-leaf-100 mb-6 lg:mb-0">
+  <div id="filters" class="contents">
+
+  <div class="flex items-center justify-between gap-3 px-5 pt-5 pb-2 lg:pt-5">
+    <h2 class="font-display font-extrabold text-2xl text-leaf-900">Affiner</h2>
+    <div class="flex items-center gap-1">
+      <a href="<%= v.reset %>" data-nav class="inline-flex items-center min-h-11 px-3 text-sm font-semibold text-leaf-700 underline underline-offset-4 <%= v.narrowed ? '' : 'invisible' %>" data-live="reset-link">Tout effacer</a>
+      <button type="button" data-close-filters class="js-only lg:!hidden w-11 h-11 items-center justify-center rounded-full border-2 border-leaf-100 text-leaf-900" aria-label="Fermer les filtres"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+  </div>
+
+  <%# Catégories : barre proportionnelle sous chaque ligne, comme un rang de plants %>
+  <details open class="group border-t border-leaf-100 px-5 py-4">
+    <summary class="flex items-center justify-between cursor-pointer min-h-11 font-display font-bold text-lg text-leaf-900 list-none [&::-webkit-details-marker]:hidden">Catégorie de plante<svg class="w-5 h-5 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+    <ul class="mt-2 space-y-1">
+      <% v.cats.forEach((c) => { %>
+      <li><label class="flex flex-wrap items-center gap-x-3 gap-y-1 min-h-11 py-1 cursor-pointer">
+        <input type="checkbox" name="categorie" value="<%= c.name %>" class="peer sr-only" <%= c.selected ? 'checked' : '' %>>
+        <span class="shrink-0 w-6 h-6 rounded-md border-2 border-leaf-600 bg-white flex items-center justify-center text-white peer-checked:bg-leaf-600 peer-checked:[&>svg]:opacity-100 peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-carrot"><svg class="w-4 h-4 opacity-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
+        <span class="flex-1 font-semibold text-leaf-900"><%= c.name %></span>
+        <span data-live="cat:<%= c.name %>" class="contents"><span class="text-sm tabular-nums text-slate-600"><%= c.count %></span><span class="basis-full pl-9"><span class="block h-1.5 rounded-full bg-leaf-100"><span class="block h-1.5 rounded-full bg-leaf-500" style="width: <%= c.share %>%"></span></span></span></span>
+      </label></li>
+      <% }) %>
+    </ul>
+  </details>
+
+  <%# Prix : l'histogramme montre où se trouvent les produits, le curseur à deux poignées choisit la fourchette %>
+  <% if (v.price) { const P = v.price; const fr = (x) => (x - P.lo) / (P.hi - P.lo); %>
+  <details open class="group border-t border-leaf-100 px-5 py-4">
+    <summary class="flex items-center justify-between cursor-pointer min-h-11 font-display font-bold text-lg text-leaf-900 list-none [&::-webkit-details-marker]:hidden">Prix<svg class="w-5 h-5 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+    <div class="mt-3" data-price data-lo="<%= P.lo %>" data-hi="<%= P.hi %>">
+      <div data-live="hist" class="flex items-end gap-[3px] h-16 px-[13px]" aria-hidden="true">
+        <% P.bars.forEach((b) => { const on = b.b > P.from && b.a < P.to; %><span data-a="<%= b.a %>" data-b="<%= b.b %>" class="flex-1 rounded-t-sm <%= on ? 'bg-leaf-500' : 'bg-leaf-100' %> <%= b.n ? '' : 'min-h-[3px]' %>" style="height: <%= b.n ? b.h : 4 %>%"></span><% }) %>
+      </div>
+      <div class="range" style="--f: <%= fr(P.from).toFixed(4) %>; --t: <%= fr(P.to).toFixed(4) %>">
+        <div class="range-track"><div class="range-fill"></div></div>
+        <input type="range" name="min" min="<%= P.lo %>" max="<%= P.hi %>" step="<%= P.step %>" value="<%= P.from %>" aria-label="Prix minimum, en FCFA">
+        <input type="range" name="max" min="<%= P.lo %>" max="<%= P.hi %>" step="<%= P.step %>" value="<%= P.to %>" aria-label="Prix maximum, en FCFA">
+      </div>
+      <p class="mt-2 flex items-center justify-between text-leaf-900 font-bold tabular-nums">
+        <span><output data-out="min"><%= v.fcfa(P.from) %></output> <span class="font-normal text-slate-600">FCFA</span></span>
+        <span><output data-out="max"><%= v.fcfa(P.to) %></output> <span class="font-normal text-slate-600">FCFA</span></span>
+      </p>
+    </div>
+  </details>
+  <% } %>
+
+  <%# Conditionnement : pastilles à cocher %>
+  <% if (v.units.length > 1) { %>
+  <details open class="group border-t border-leaf-100 px-5 py-4">
+    <summary class="flex items-center justify-between cursor-pointer min-h-11 font-display font-bold text-lg text-leaf-900 list-none [&::-webkit-details-marker]:hidden">Conditionnement<svg class="w-5 h-5 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+    <ul class="mt-2 flex flex-wrap gap-2">
+      <% v.units.forEach((u) => { %>
+      <li><label class="cursor-pointer">
+        <input type="checkbox" name="unite" value="<%= u.name %>" class="peer sr-only" <%= u.selected ? 'checked' : '' %>>
+        <span class="inline-flex items-center gap-2 min-h-11 px-4 rounded-full border-2 border-leaf-100 bg-leaf-50 text-leaf-900 font-semibold peer-checked:bg-leaf-900 peer-checked:border-leaf-900 peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-carrot"><%= u.name %><span data-live="unit:<%= u.name %>" class="contents"><span class="text-sm tabular-nums opacity-80"><%= u.count %></span></span></span>
+      </label></li>
+      <% }) %>
+    </ul>
+  </details>
+  <% } %>
+
+  <%# Disponibilité : interrupteurs %>
+  <div class="border-t border-leaf-100 px-5 py-4 space-y-1">
+    <label class="flex items-center justify-between gap-3 min-h-11 cursor-pointer">
+      <span class="font-semibold text-leaf-900">En stock seulement <span data-live="stock" class="text-sm font-normal text-slate-600 tabular-nums">(<%= v.stockCount %>)</span></span>
+      <input type="checkbox" name="dispo" value="1" class="peer sr-only" <%= v.f.dispo ? 'checked' : '' %>>
+      <span class="switch peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-carrot" aria-hidden="true"></span>
+    </label>
+    <% if (v.noPriceCount || v.f.sansPrix) { %>
+    <label class="flex items-center justify-between gap-3 min-h-11 cursor-pointer">
+      <span class="font-semibold text-leaf-900">Prix affiché seulement <span data-live="noprice" class="text-sm font-normal text-slate-600 tabular-nums">(<%= v.noPriceCount %> sans prix)</span></span>
+      <input type="checkbox" name="sans_prix" value="1" class="peer sr-only" <%= v.f.sansPrix ? 'checked' : '' %>>
+      <span class="switch peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-carrot" aria-hidden="true"></span>
+    </label>
+    <% } %>
+  </div>
+
+  <div class="px-5 pb-5 pt-1">
+    <button type="submit" class="js-hide w-full min-h-12 rounded-full bg-leaf-600 hover:bg-leaf-700 text-white font-bold text-lg">Appliquer les filtres</button>
+  </div>
+  <div class="sheet-foot sticky bottom-0 px-5 py-4 bg-white border-t border-leaf-100 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <button type="button" data-close-filters class="w-full min-h-12 rounded-full bg-carrot hover:brightness-110 text-leaf-900 font-bold text-lg">Voir <span data-live="sheet-count"><%= v.count %> produit<%= v.count > 1 ? 's' : '' %></span></button>
+  </div>
+
+  </div>
+</form>
