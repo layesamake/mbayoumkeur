@@ -193,3 +193,8 @@ add_action('template_redirect', function () {
 add_filter('author_link', fn () => home_url('/'));
 add_filter('wp_sitemaps_add_provider', fn ($provider, $name) => $name === 'users' ? false : $provider, 10, 2);
 add_filter('oembed_response_data', function ($data) { unset($data['author_name'], $data['author_url']); return $data; });
+
+// Le type « plante » doit gérer l'auteur (rattachement des plantes à un agriculteur, réservé à l'administrateur)
+add_action('init', function () {
+  add_post_type_support(MBK_CPT, 'author');
+}, 99);
