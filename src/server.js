@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getCatalog } from './wp.js';
 import { shopView } from './shop.js';
+import { farmerRouter } from './farmer.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_NAME = process.env.SITE_NAME || 'Mbayoumkeur';
@@ -20,7 +21,9 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(root, 'src/views'));
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(express.static(path.join(root, 'public'), { maxAge: '5m' }));
+app.use(express.static(path.join(root, 'public'), { maxAge: '5m', redirect: false }));
+// Espace agriculteur : avant le chargement du catalogue (il n'en a pas besoin)
+app.use('/agriculteur', farmerRouter());
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 const fcfa = (n) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
