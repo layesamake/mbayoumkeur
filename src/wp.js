@@ -40,11 +40,14 @@ async function fetchAll() {
   return [...produits, ...plantes];
 }
 
+const ref = (id) => 'MK-' + String(id).padStart(4, '0');
+
 function toProduct(post) {
   const terms = (post._embedded?.['wp:term'] || []).flat().filter((t) => t.taxonomy === 'categorie_produit');
   const media = post._embedded?.['wp:featuredmedia']?.[0];
   const m = post.meta || {};
   return {
+    ref: ref(post.id),
     slug: post.slug,
     name: strip(post.title.rendered),
     category: terms[0]?.name || 'Divers',
@@ -71,6 +74,7 @@ function toPlante(post) {
   const media = post._embedded?.['wp:featuredmedia']?.[0];
   const cat = a.categorie_univers;
   return {
+    ref: ref(post.id),
     slug: post.slug,
     name: strip(post.title.rendered),
     category: CATEGORIES[cat] || (cat ? cat.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'Divers'),

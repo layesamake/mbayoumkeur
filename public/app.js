@@ -12,9 +12,9 @@
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-add]');
     if (!btn) return;
-    const { slug, name, price, unit } = btn.dataset;
+    const { slug, name, price, unit, ref } = btn.dataset;
     const item = cart.find((i) => i.slug === slug);
-    if (item) item.qty += 1; else cart.push({ slug, name, price: Number(price) || 0, unit, qty: 1 });
+    if (item) item.qty += 1; else cart.push({ slug, name, ref: ref || '', price: Number(price) || 0, unit, qty: 1 });
     save(cart); badge();
     const old = btn.textContent; btn.textContent = '✓ Ajouté'; setTimeout(() => (btn.textContent = old), 1200);
   });
@@ -23,7 +23,7 @@
   if (list) {
     const text = () => {
       const name = $('cust-name').value.trim(), addr = $('cust-addr').value.trim();
-      const lines = cart.map((i) => `- ${i.qty} × ${i.name}` + (i.price ? ` (${fcfa(i.price * i.qty)})` : ''));
+      const lines = cart.map((i) => `- ${i.qty} × ${i.name}` + (i.ref ? ` [${i.ref}]` : '') + (i.price ? ` (${fcfa(i.price * i.qty)})` : ''));
       const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
       return [`Bonjour ${document.body.dataset.site}, je souhaite commander :`, ...lines,
         total ? `Total estimé : ${fcfa(total)}` : '', name && `Nom : ${name}`, addr && `Livraison : ${addr}`]
