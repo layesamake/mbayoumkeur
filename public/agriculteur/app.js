@@ -142,7 +142,7 @@
     try { await qPut(entry); } catch { throw new Error('Ce téléphone ne peut pas garder l’enregistrement hors connexion.'); }
     const i = state.queue.findIndex((q) => q.key === entry.key);
     if (i >= 0) state.queue[i] = entry; else state.queue.push(entry);
-    dropUrl(entry.key); rebuild();
+    dropUrl(entry.key); rebuild(); requestBgSync();
   }
   async function dequeue(key) {
     try { await qDel(key); } catch {}
@@ -168,9 +168,22 @@
 
   /* ----- Envoi des enregistrements en attente ----- */
   let flushing = false;
+  // Demande l'envoi en tâche de fond : le navigateur réveille le service worker dès que le réseau revient, même application fermée
+  // (Chrome / Edge sur Android ; ailleurs, l'envoi reste celui de l'application ouverte)
+  async function requestBgSync() {
+    try { const reg = await navigator.serviceWorker?.ready; await reg?.sync?.register('mbk-flush'); } catch {}
+  }
   async function flush(force = false) {
     if (flushing || !state.me || !state.queue.length || !navigator.onLine) return;
     flushing = true;
+    try {
+      if (navigator.locks) await navigator.locks.request('mbk-flush', () => flushLocked(force)); else await flushLocked(force);
+    } finally { flushing = false; }
+  }
+  async function flushLocked(force) {
+    // le service worker a peut-être déjà envoyé une partie de la file : on la relit
+    if (hasIDB) { try { state.queue = (await qAll()).filter((q) => q.user === state.me.id); rebuild(); } catch {} }
+    if (!state.queue.length) return;
     let sent = 0, stopped = false;
     try {
       for (const e of [...state.queue].sort((a, b) => a.createdAt - b.createdAt)) {
@@ -186,7 +199,7 @@
           e.error = err.message; try { await qPut(e); } catch {}                // à corriger par l'agriculteur
         }
       }
-    } finally { flushing = false; }
+    } finally { /* verrou libéré par flush */ }
     if (stopped) return;
     if (sent) { await refreshServer(); toast(`${sent} ${plural(sent, 'enregistrement envoyé', 'enregistrements envoyés')}`); }
     rebuild(); refreshView();
@@ -965,7 +978,7 @@
       Object.assign(state, { me: snap.v.me, config: snap.v.config, server: snap.v.plantes, offline: true, snapAt: snap.at });
     }
     state.queue = hasIDB ? (await qAll().catch(() => [])).filter((q) => q.user === state.me.id) : [];
-    rebuild(); route(); flush();
+    rebuild(); route(); flush(); if (state.queue.length) requestBgSync();
     if (!state.offline) cachePhotos(state.server);
   }
 
@@ -975,6 +988,12 @@
     updateBanner(); if (!state.me) return;
     await flush(); if (!state.queue.length) await refreshServer();
     refreshView();
+  });
+  navigator.serviceWorker?.addEventListener('message', async (ev) => {
+    if (ev.data?.type !== 'mbk-flushed' || !state.me) return;
+    try { state.queue = hasIDB ? (await qAll()).filter((q) => q.user === state.me.id) : state.queue; } catch {}
+    await refreshServer(); refreshView();
+    toast(`${ev.data.sent} ${plural(ev.data.sent, 'enregistrement envoyé', 'enregistrements envoyés')} en arrière-plan`);
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) flush(); });
   setInterval(() => { if (state.queue.length) flush(); }, 20000);
