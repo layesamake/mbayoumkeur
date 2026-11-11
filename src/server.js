@@ -24,6 +24,8 @@ app.disable('x-powered-by');
 app.use(express.static(path.join(root, 'public'), { maxAge: '5m', redirect: false }));
 // Espace agriculteur : avant le chargement du catalogue (il n'en a pas besoin)
 app.use('/agriculteur', farmerRouter());
+// Adresses courtes à retenir et à dicter : mbayoumkeur.shop/agriculteurs (ou /producteurs)
+app.get(['/agriculteurs', '/producteurs'], (req, res) => res.redirect(302, '/agriculteur'));
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 const fcfa = (n) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
