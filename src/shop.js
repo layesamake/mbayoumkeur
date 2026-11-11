@@ -46,7 +46,7 @@ export function toQS(f, page = 1) {
 // `skip` : critères ignorés, pour compter ce qui resterait si on changeait ce critère
 function matches(p, f, skip = '') {
   if (f.q) {
-    const hay = fold(`${p.name} ${p.category} ${p.unit} ${p.excerpt}`);
+    const hay = fold(`${p.name} ${p.localName || ''} ${p.category} ${p.unit} ${p.excerpt}`);
     if (!fold(f.q).split(/\s+/).every((t) => hay.includes(t))) return false;
   }
   if (skip !== 'cats' && f.cats.length && !f.cats.includes(p.category)) return false;
