@@ -118,17 +118,17 @@
     const online = p.statut === 'publish';
     return `
     <li class="bg-white rounded-3xl border-2 border-leaf-100 p-3 flex gap-3 items-stretch">
-      <a href="#/plante/${p.id}" class="shrink-0 w-24 h-24 rounded-2xl overflow-hidden bg-leaf-50 flex items-center justify-center text-4xl" aria-label="Modifier ${esc(p.titre)}">
+      <a href="#/plante/${p.id}" class="shrink-0 w-20 h-20 rounded-2xl overflow-hidden bg-leaf-50 flex items-center justify-center text-4xl" aria-label="Modifier ${esc(p.titre)}">
         ${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" class="w-full h-full object-cover ${p.disponible ? '' : 'opacity-50 grayscale'}">` : `<span aria-hidden="true">${icon(p.categorie)}</span>`}
       </a>
       <div class="flex-1 min-w-0 flex flex-col justify-between">
         <div>
-          <a href="#/plante/${p.id}" class="block font-display font-bold text-xl leading-tight truncate">${esc(p.titre)}</a>
+          <a href="#/plante/${p.id}" class="block font-display font-bold text-xl leading-tight line-clamp-2 break-words">${esc(p.titre)}</a>
           <p class="text-slate-700">${p.prix ? fcfa(p.prix) + ' FCFA' + (p.conditionnement ? ' / ' + esc(UNIT(p.conditionnement)) : '') : 'Prix sur demande'}</p>
         </div>
         <span class="self-start rounded-full px-3 py-0.5 text-base font-bold ${online ? 'bg-leaf-100 text-leaf-900' : 'bg-sun-soft text-leaf-900'}">${online ? 'En ligne' : 'Brouillon'}</span>
       </div>
-      <label class="shrink-0 flex flex-col items-center justify-center gap-1.5 w-20 cursor-pointer">
+      <label class="shrink-0 flex flex-col items-center justify-center gap-1.5 w-[4.25rem] cursor-pointer">
         <input type="checkbox" data-stock="${p.id}" class="peer sr-only" ${p.disponible ? 'checked' : ''}>
         <span class="switch peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-carrot" aria-hidden="true"></span>
         <span class="text-sm font-bold" data-stock-label="${p.id}">${p.disponible ? 'En stock' : 'Épuisé'}</span>
