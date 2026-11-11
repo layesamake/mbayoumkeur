@@ -99,7 +99,8 @@ function mbk_api_gallery_items(int $post_id): array {
   $out = [];
   foreach (array_filter(array_map('intval', (array) get_post_meta($post_id, MBK_GAL, true))) as $id) {
     $url = wp_get_attachment_image_url($id, 'mbk-400') ?: wp_get_attachment_image_url($id, 'medium') ?: (wp_get_attachment_url($id) ?: '');
-    if ($url) $out[] = ['id' => $id, 'url' => $url];
+    $full = wp_get_attachment_image_url($id, 'mbk-1200') ?: (wp_get_attachment_url($id) ?: $url);
+    if ($url) $out[] = ['id' => $id, 'url' => $url, 'full' => $full];
   }
   return $out;
 }
@@ -110,6 +111,7 @@ function mbk_api_plante(WP_Post $p): array {
   if ($thumb_id) {
     $photo = wp_get_attachment_image_url($thumb_id, 'mbk-400') ?: wp_get_attachment_image_url($thumb_id, 'medium') ?: (wp_get_attachment_url($thumb_id) ?: '');
   }
+  $photo_full = $thumb_id ? (wp_get_attachment_image_url($thumb_id, 'mbk-1200') ?: (wp_get_attachment_url($thumb_id) ?: $photo)) : '';
   $dispo = mbk_api_get($p->ID, 'disponible');
   return [
     'id' => $p->ID,
@@ -124,6 +126,7 @@ function mbk_api_plante(WP_Post $p): array {
     'disponible' => !($dispo === '0' || $dispo === 0 || $dispo === false),
     'statut' => $p->post_status === 'publish' ? 'publish' : 'draft',
     'photo' => $photo,
+    'photo_full' => $photo_full,
     'galerie' => mbk_api_gallery_items($p->ID),
     'modifie' => get_post_modified_time('c', true, $p),
   ];
@@ -194,7 +197,15 @@ function mbk_api_upload(string $key, int $post_id) {
 function mbk_api_photo(int $post_id) {
   $att = mbk_api_upload('photo', $post_id);
   if (is_wp_error($att) || !$att) return $att;
+  $old = (int) get_post_thumbnail_id($post_id);
   set_post_thumbnail($post_id, $att);
+  // Photo retouchée ou remplacée : l'ancienne est supprimée si elle appartenait à CETTE plante et n'est pas dans sa galerie
+  // (une photo ajoutée à la main dans la médiathèque, rattachée à rien ou ailleurs, n'est jamais touchée)
+  if ($old && $old !== (int) $att) {
+    $o = get_post($old);
+    $gal = array_map('intval', (array) get_post_meta($post_id, MBK_GAL, true));
+    if ($o && (int) $o->post_parent === $post_id && !in_array($old, $gal, true)) wp_delete_attachment($old, true);
+  }
   return $att;
 }
 

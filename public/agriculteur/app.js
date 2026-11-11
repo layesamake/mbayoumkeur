@@ -191,6 +191,23 @@
     g.drawImage(bmp, -(w * k) / 2, -(h * k) / 2, w * k, h * k);
     return c;
   }
+  // Luminosité, contraste, saturation (de -100 à 100, 0 = inchangé), mêmes formules que filter: brightness() contrast() saturate()
+  const hasAdj = (a) => !!a && (a.b || a.c || a.s);
+  const cssFilter = (a) => (hasAdj(a) ? `brightness(${1 + a.b / 100}) contrast(${1 + a.c / 100}) saturate(${1 + a.s / 100})` : 'none');
+  function applyAdjust(canvas, a) {
+    if (!hasAdj(a)) return;
+    const g = canvas.getContext('2d'), img = g.getImageData(0, 0, canvas.width, canvas.height), d = img.data;
+    const B = 1 + a.b / 100, C = 1 + a.c / 100, S = Math.max(0, 1 + a.s / 100);
+    const cl = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
+    for (let i = 0; i < d.length; i += 4) {
+      let r = cl(d[i] * B), gg = cl(d[i + 1] * B), b = cl(d[i + 2] * B);
+      r = cl((r - 127.5) * C + 127.5); gg = cl((gg - 127.5) * C + 127.5); b = cl((b - 127.5) * C + 127.5);
+      d[i] = cl((0.213 + 0.787 * S) * r + (0.715 - 0.715 * S) * gg + (0.072 - 0.072 * S) * b);
+      d[i + 1] = cl((0.213 - 0.213 * S) * r + (0.715 + 0.285 * S) * gg + (0.072 - 0.072 * S) * b);
+      d[i + 2] = cl((0.213 - 0.213 * S) * r + (0.715 - 0.715 * S) * gg + (0.072 + 0.928 * S) * b);
+    }
+    g.putImageData(img, 0, 0);
+  }
   // Rend la photo (avec son recadrage : fractions x, y, w, h de l'image pivotée) en un Blob de `max` pixels au plus
   async function renderPhoto(p, max = 1600, q = 0.8) {
     const bmp = await loadBitmap(p.source);
@@ -202,6 +219,7 @@
     out.width = Math.max(1, Math.round(cr.w * full.width)); out.height = Math.max(1, Math.round(cr.h * full.height));
     out.getContext('2d').drawImage(full, cr.x * full.width, cr.y * full.height, cr.w * full.width, cr.h * full.height, 0, 0, out.width, out.height);
     if (bmp.close) bmp.close();
+    applyAdjust(out, cr.adj);
     return toBlob(out, q);
   }
   // Une photo du formulaire : l'original (source), son recadrage éventuel, un aperçu, et le résultat traité une fois calculé
@@ -217,19 +235,19 @@
   }
 
   /* ----- Éditeur de recadrage : on glisse la photo sous le cadre, on pince ou on règle le zoom ----- */
-  const RATIOS = [['1:1', 'Carré', 1], ['4:3', 'Paysage', 4 / 3], ['3:4', 'Portrait', 3 / 4]];
+  const RATIOS = [['orig', 'Original', 0], ['1:1', 'Carré', 1], ['4:3', 'Paysage', 4 / 3], ['3:4', 'Portrait', 3 / 4]];
   async function openCropper(photo) {
     const bmp = await loadBitmap(photo.source);
     return new Promise((resolve) => {
-      const st = { rot: photo.crop?.rot || 0, ratio: photo.crop?.ratio || '1:1', zoom: photo.crop?.zoom || 1, cx: photo.crop?.cx ?? 0.5, cy: photo.crop?.cy ?? 0.5 };
+      const st = { adj: { b: photo.crop?.adj?.b || 0, c: photo.crop?.adj?.c || 0, s: photo.crop?.adj?.s || 0 }, tab: 'crop', rot: photo.crop?.rot || 0, ratio: photo.crop?.ratio || '1:1', zoom: photo.crop?.zoom || 1, cx: photo.crop?.cx ?? 0.5, cy: photo.crop?.cy ?? 0.5 };
       let wc;
       const ov = document.createElement('div');
-      ov.id = 'cropper'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Recadrer la photo');
+      ov.id = 'cropper'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Recadrer et retoucher la photo');
       ov.className = 'fixed inset-0 z-[70] bg-black text-white flex flex-col';
       ov.innerHTML = `
         <header class="flex items-center justify-between gap-3 px-3 pt-[max(.75rem,env(safe-area-inset-top))] pb-3">
           <button type="button" data-c="cancel" class="min-h-12 px-5 rounded-full border-2 border-white/50 font-bold text-lg">Annuler</button>
-          <h2 class="font-display font-bold text-xl">Recadrer</h2>
+          <h2 class="font-display font-bold text-xl">Retoucher</h2>
           <button type="button" data-c="ok" class="min-h-12 px-6 rounded-full bg-carrot text-leaf-900 font-display font-extrabold text-xl">Valider</button>
         </header>
         <div id="crop-area" class="relative flex-1 overflow-hidden touch-none select-none bg-neutral-900" tabindex="0" role="group" aria-label="Zone de recadrage : glissez la photo pour la déplacer, pincez pour agrandir. Au clavier : flèches pour déplacer, plus et moins pour le zoom.">
@@ -237,17 +255,27 @@
           <div id="crop-frame" class="absolute border-2 border-white pointer-events-none" style="box-shadow:0 0 0 9999px rgba(0,0,0,.62)"></div>
         </div>
         <div class="px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-3 bg-leaf-900">
+          <div class="flex items-center gap-2" role="group" aria-label="Que modifier ?">
+            <button type="button" data-tab="crop" aria-pressed="true" class="flex-1 min-h-12 rounded-full border-2 border-white/50 font-bold aria-pressed:bg-white aria-pressed:text-leaf-900 aria-pressed:border-white">Cadrer</button>
+            <button type="button" data-tab="adj" aria-pressed="false" class="flex-1 min-h-12 rounded-full border-2 border-white/50 font-bold aria-pressed:bg-white aria-pressed:text-leaf-900 aria-pressed:border-white">Couleurs</button>
+          </div>
+          <div data-panel="crop" class="space-y-3">
           <div class="flex items-center gap-2" role="group" aria-label="Format du cadre">
             ${RATIOS.map((r) => `<button type="button" data-ratio="${r[0]}" aria-pressed="false" class="flex-1 min-h-12 rounded-full border-2 border-white/50 font-bold aria-pressed:bg-white aria-pressed:text-leaf-900 aria-pressed:border-white">${r[1]}</button>`).join('')}
             <button type="button" data-c="rotate" aria-label="Pivoter d’un quart de tour" class="min-h-12 w-14 rounded-full border-2 border-white/50 font-bold text-2xl leading-none">⟳</button>
           </div>
           <label class="flex items-center gap-3 font-semibold">Zoom <input id="crop-zoom" type="range" min="1" max="5" step="0.01" value="1" class="flex-1 h-8 accent-[#fc7404]"></label>
+          </div>
+          <div data-panel="adj" class="hidden space-y-1">
+            ${[['b', 'Luminosité', -60, 60], ['c', 'Contraste', -60, 60], ['s', 'Couleurs', -100, 100]].map((a) => `<label class="flex items-center gap-3 font-semibold"><span class="w-28">${a[1]}</span><input data-adj="${a[0]}" type="range" min="${a[2]}" max="${a[3]}" step="1" value="0" aria-label="${a[1]}" class="flex-1 h-9 accent-[#fc7404]"></label>`).join('')}
+            <button type="button" data-c="reset" class="min-h-12 px-4 underline underline-offset-4 font-semibold">Remettre à zéro</button>
+          </div>
         </div>`;
       document.body.appendChild(ov); document.body.style.overflow = 'hidden';
       const area = ov.querySelector('#crop-area'), cv = ov.querySelector('#crop-img'), frame = ov.querySelector('#crop-frame'), zoomEl = ov.querySelector('#crop-zoom');
       const clamp = (z) => Math.min(5, Math.max(1, z));
       const geo = () => {
-        const A = area.getBoundingClientRect(), r = RATIOS.find((x) => x[0] === st.ratio)[2], pad = 20;
+        const A = area.getBoundingClientRect(), r = st.ratio === 'orig' ? wc.width / wc.height : RATIOS.find((x) => x[0] === st.ratio)[2], pad = 20;
         let fw = Math.max(40, A.width - pad * 2), fh = fw / r;
         if (fh > A.height - pad * 2) { fh = Math.max(40, A.height - pad * 2); fw = fh * r; }
         const iw = wc.width, ih = wc.height, s = Math.max(fw / iw, fh / ih) * st.zoom;
@@ -261,7 +289,10 @@
         cv.style.width = g.iw * g.s + 'px'; cv.style.height = g.ih * g.s + 'px';
         cv.style.left = g.A.width / 2 - st.cx * g.iw * g.s + 'px'; cv.style.top = g.A.height / 2 - st.cy * g.ih * g.s + 'px';
         frame.style.width = g.fw + 'px'; frame.style.height = g.fh + 'px'; frame.style.left = (g.A.width - g.fw) / 2 + 'px'; frame.style.top = (g.A.height - g.fh) / 2 + 'px';
-        zoomEl.value = st.zoom;
+        zoomEl.value = st.zoom; cv.style.filter = cssFilter(st.adj);
+        ov.querySelectorAll('[data-adj]').forEach((i) => { i.value = st.adj[i.dataset.adj]; });
+        ov.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === st.tab)));
+        ov.querySelectorAll('[data-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== st.tab));
         ov.querySelectorAll('[data-ratio]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.ratio === st.ratio)));
       };
       const ptrs = new Map(); let pinch = 0;
@@ -289,18 +320,22 @@
         e.preventDefault(); draw();
       });
       zoomEl.addEventListener('input', () => { st.zoom = clamp(Number(zoomEl.value)); draw(); });
+      ov.querySelectorAll('[data-adj]').forEach((i) => i.addEventListener('input', () => { st.adj[i.dataset.adj] = Number(i.value); draw(); }));
       const onKey = (e) => { if (e.key === 'Escape') close(false); };
       const onResize = () => draw();
       window.addEventListener('keydown', onKey); window.addEventListener('resize', onResize);
       function close(ok) {
-        if (ok) { const g = geo(); photo.crop = { rot: st.rot, ratio: st.ratio, zoom: st.zoom, cx: st.cx, cy: st.cy, x: st.cx - g.hx, y: st.cy - g.hy, w: 2 * g.hx, h: 2 * g.hy }; }
+        if (ok) { const g = geo(); photo.crop = { adj: hasAdj(st.adj) ? { ...st.adj } : null, rot: st.rot, ratio: st.ratio, zoom: st.zoom, cx: st.cx, cy: st.cy, x: st.cx - g.hx, y: st.cy - g.hy, w: 2 * g.hx, h: 2 * g.hy }; }
         window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize);
         ov.remove(); document.body.style.overflow = ''; if (bmp.close) bmp.close();
         resolve(ok);
       }
       ov.addEventListener('click', (e) => {
         const c = e.target.closest('[data-c]')?.dataset.c, r = e.target.closest('[data-ratio]')?.dataset.ratio;
-        if (c === 'cancel') close(false); else if (c === 'ok') close(true);
+        const tab = e.target.closest('[data-tab]')?.dataset.tab;
+        if (tab) { st.tab = tab; draw(); }
+        else if (c === 'reset') { st.adj = { b: 0, c: 0, s: 0 }; draw(); }
+        else if (c === 'cancel') close(false); else if (c === 'ok') close(true);
         else if (c === 'rotate') { st.rot = (st.rot + 90) % 360; st.cx = st.cy = 0.5; st.zoom = 1; build(); draw(); }
         else if (r) { st.ratio = r; draw(); }
       });
@@ -315,6 +350,29 @@
     try { await refreshPreview(p); } catch {}
     const f = state.form; if (!f) return;
     if (f.main === p) { $('#photo').innerHTML = photoBlock(); f.ident = null; renderIdent(); } else renderExtras();
+  }
+  async function fetchOnline(url) {
+    if (!navigator.onLine) throw Object.assign(new Error('offline'), { offline: true });
+    const res = await fetch('/agriculteur/api/photo?u=' + encodeURIComponent(url), { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } });
+    if (!res.ok) throw new Error('photo');
+    return res.blob();
+  }
+  // Retouche d'une photo déjà en ligne : on la relit, l'éditeur s'ouvre ; seulement si on valide, elle remplace l'ancienne à l'enregistrement
+  async function editOnline(kind, galId) {
+    const f = state.form; if (!f || f.busy) return;
+    const url = kind === 'main' ? (f.photoFull || f.photoUrl) : f.gallery.find((g) => g.id === galId)?.full;
+    if (!url) return;
+    toast('Ouverture de la photo…');
+    let p;
+    try { p = mkPhoto(await fetchOnline(url)); }
+    catch (err) { return toast(err.offline ? 'Hors connexion : une photo déjà en ligne ne peut pas être retouchée maintenant. Reprenez-la plus tard, ou prenez-en une nouvelle.' : 'Cette photo n’a pas pu être ouverte. Réessayez.', 'err'); }
+    let ok;
+    try { ok = await openCropper(p); } catch { dropPhoto(p); return toast('Cette photo n’a pas pu être ouverte pour la retouche.', 'err'); }
+    if (!ok) { dropPhoto(p); return; }
+    try { await refreshPreview(p); } catch {}
+    if (state.form !== f) { dropPhoto(p); return; }
+    if (kind === 'main') { dropPhoto(f.main); f.main = p; f.photoUrl = ''; f.photoFull = ''; f.ident = null; $('#photo').innerHTML = photoBlock(); renderIdent(); }
+    else { f.removed.push(galId); f.gallery = f.gallery.filter((g) => g.id !== galId); f.extras.push(p); renderExtras(); }
   }
   const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' Mo' : Math.max(1, Math.round(n / 1024)) + ' Ko');
 
@@ -444,8 +502,8 @@
       <p class="mt-3 text-center"><label for="gal" class="inline-flex items-center min-h-12 px-3 underline underline-offset-4 font-semibold cursor-pointer">Ou choisir dans la galerie</label></p>${inputs}`;
     return `
       <div class="relative rounded-3xl overflow-hidden bg-leaf-50 aspect-[4/3] border-2 border-leaf-100"><img src="${esc(src)}" alt="Photo de la plante" class="w-full h-full object-contain"></div>
-      ${f.main ? `<p class="mt-2 text-slate-700">${f.main.crop ? 'Photo recadrée. ' : ''}Elle est préparée automatiquement quand vous publiez.</p>` : ''}
-      <div class="mt-3 grid ${f.main ? 'grid-cols-3' : 'grid-cols-2'} gap-3">${f.main ? `<button type="button" data-act="crop" class="${btn}">${ICON.crop}Recadrer</button>` : ''}<label for="cam" class="${btn}">${ICON.camera('w-6 h-6')}Reprendre</label><label for="gal" class="${btn}">Galerie</label></div>${inputs}`;
+      ${f.main ? `<p class="mt-2 text-slate-700">${f.main.crop ? (hasAdj(f.main.crop.adj) ? 'Photo retouchée. ' : 'Photo recadrée. ') : ''}Elle est préparée automatiquement quand vous publiez.</p>` : ''}
+      <div class="mt-3 grid grid-cols-3 gap-3">${f.main ? `<button type="button" data-act="crop" class="${btn}">${ICON.crop}Retoucher</button>` : `<button type="button" data-act="edit-main" class="${btn}">${ICON.crop}Retoucher</button>`}<label for="cam" class="${btn}">${ICON.camera('w-6 h-6')}Reprendre</label><label for="gal" class="${btn}">Galerie</label></div>${inputs}`;
   }
 
   /* ----- Doublons : même nom (sans accents, majuscules ni pluriel) dans la même catégorie, parmi MES plantes ----- */
@@ -533,13 +591,13 @@
   const extraSlots = () => 4 - state.form.gallery.length - state.form.extras.length;
   function extrasBlock() {
     const f = state.form, slots = extraSlots();
-    const thumb = (url, rm, crop = null) => `<div class="relative aspect-square rounded-2xl overflow-hidden bg-leaf-50 border-2 border-leaf-100">${crop !== null ? `<button type="button" data-crop="${crop}" aria-label="Recadrer cette photo" class="block w-full h-full"><img src="${esc(url)}" alt="" class="w-full h-full object-cover"></button><span class="pointer-events-none absolute bottom-1 left-1 rounded-full bg-white/95 text-leaf-900 px-2 py-0.5 text-sm font-bold">Recadrer</span>` : `<img src="${esc(url)}" alt="" class="w-full h-full object-cover">`}
+    const thumb = (url, rm, crop = null, gal = null) => `<div class="relative aspect-square rounded-2xl overflow-hidden bg-leaf-50 border-2 border-leaf-100">${crop !== null || gal !== null ? `<button type="button" ${crop !== null ? `data-crop="${crop}"` : `data-editgal="${gal}"`} aria-label="Retoucher cette photo" class="block w-full h-full"><img src="${esc(url)}" alt="" class="w-full h-full object-cover"></button><span class="pointer-events-none absolute bottom-1 left-1 rounded-full bg-white/95 text-leaf-900 px-2 py-0.5 text-sm font-bold">Retoucher</span>` : `<img src="${esc(url)}" alt="" class="w-full h-full object-cover">`}
       <button type="button" data-rm="${rm}" aria-label="Retirer cette photo" class="absolute top-1 right-1 w-11 h-11 rounded-full bg-white/95 text-leaf-900 font-extrabold text-xl shadow">✕</button></div>`;
     const tile = 'flex flex-col items-center justify-center gap-1 aspect-square rounded-2xl border-4 border-dashed border-leaf-600 bg-white text-leaf-700 font-display font-bold text-center cursor-pointer active:bg-leaf-100';
     const inputs = `<input id="xcam" type="file" accept="image/*" capture="environment" class="sr-only"><input id="xgal" type="file" accept="image/*" multiple class="sr-only">`;
     if (f.xbusy) return `<p role="status" class="rounded-2xl bg-white border-2 border-leaf-100 px-4 py-6 text-center font-display font-bold text-xl">Préparation des photos…</p>${inputs}`;
     return `<div class="grid grid-cols-3 gap-3">
-      ${f.gallery.map((g) => thumb(g.url, 'gal:' + g.id)).join('')}${f.extras.map((x, i) => thumb(shown(x), 'new:' + i, i)).join('')}
+      ${f.gallery.map((g) => thumb(g.url, 'gal:' + g.id, null, g.id)).join('')}${f.extras.map((x, i) => thumb(shown(x), 'new:' + i, i)).join('')}
       ${slots > 0 ? `<label for="xcam" class="${tile}">${ICON.camera('w-8 h-8')}<span class="text-base">Photo</span></label><label for="xgal" class="${tile}"><span class="text-base">Galerie</span></label>` : ''}
     </div>${inputs}`;
   }
@@ -555,7 +613,7 @@
         origTitre: e?.titre || '', origCat: e?.categorie || '', forceDup: false,
         id: id || null, titre: e?.titre || '', nom_local: e?.nom_local || '', categorie: e?.categorie || '', prix: e?.prix ? String(e.prix) : '', conditionnement: e?.conditionnement || '',
         disponible: e ? e.disponible : true, description: e?.description || '', conseils: e?.conseils || '', statut: e?.statut || 'draft',
-        photoUrl: q?.blob ? '' : (e?.photo || ''), main: q?.blob ? mkPhoto(q.blob, q.blob) : null, busy: false,
+        photoUrl: q?.blob ? '' : (e?.photo || ''), photoFull: q?.blob ? '' : (e?.photo_full || ''), main: q?.blob ? mkPhoto(q.blob, q.blob) : null, busy: false,
         // photos supplémentaires : déjà en ligne (gallery, moins celles à retirer), nouvelles (extras) et à retirer (removed)
         removed: q?.retirer ? [...q.retirer] : [],
         extras: (q?.extras || []).map((b) => mkPhoto(b, b)), xbusy: false, ident: null,
@@ -667,6 +725,8 @@
       }
       if (e.target.closest('[data-act="identify"]')) identify();
       if (e.target.closest('[data-act="crop"]') && f.main) cropPhoto(f.main);
+      if (e.target.closest('[data-act="edit-main"]')) editOnline('main');
+      const eg = e.target.closest('[data-editgal]'); if (eg) editOnline('gal', Number(eg.dataset.editgal));
       const cr = e.target.closest('[data-crop]'); if (cr && f.extras[Number(cr.dataset.crop)]) cropPhoto(f.extras[Number(cr.dataset.crop)]);
       const pick = e.target.closest('[data-pick]'); if (pick) pickSuggestion(Number(pick.dataset.pick));
     });
