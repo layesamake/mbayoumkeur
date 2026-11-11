@@ -39,7 +39,7 @@ const setSession = (req, res, data) => res.cookie(COOKIE, seal({ ...data, exp: D
   httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: MAX_AGE * 1000, path: '/agriculteur',
 });
 
-class HttpError extends Error { constructor(status, message, code) { super(message); this.status = status; this.code = code; } }
+class HttpError extends Error { constructor(status, message, code, extra) { super(message); this.status = status; this.code = code; this.extra = extra; } }
 
 // WordPress, au nom de l'agriculteur (sess) ou sans identité (connexion)
 async function wp(sess, method, route, { json, form } = {}) {
@@ -59,7 +59,7 @@ async function wp(sess, method, route, { json, form } = {}) {
     const code = data?.code;
     // identifiants de session révoqués ou expirés côté WordPress
     if (sess && (res.status === 401 || code === 'rest_forbidden' || code === 'incorrect_password')) throw new HttpError(401, 'Session expirée. Reconnectez-vous.', 'session');
-    throw new HttpError(res.status >= 400 && res.status < 600 ? res.status : 502, data?.message || 'Erreur du serveur.', code);
+    throw new HttpError(res.status >= 400 && res.status < 600 ? res.status : 502, data?.message || 'Erreur du serveur.', code, data?.data?.existant ? { existant: data.data.existant } : undefined);
   }
   return data;
 }
@@ -89,7 +89,7 @@ const aiLimit = (id, kind = 'description') => {
 
 // « cle » : identifiant unique d'un envoi (création), pour qu'un renvoi après coupure réseau ne crée jamais de doublon
 // « retirer » : identifiants des photos supplémentaires à supprimer (séparés par des virgules)
-const FIELDS = ['titre', 'nom_local', 'categorie', 'prix', 'conditionnement', 'disponible', 'description', 'conseils', 'statut', 'cle', 'retirer'];
+const FIELDS = ['titre', 'nom_local', 'categorie', 'prix', 'conditionnement', 'disponible', 'description', 'conseils', 'statut', 'cle', 'retirer', 'force'];
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 5 }, fileFilter: (req, file, cb) => (/^image\/(jpeg|png|webp)$/.test(file.mimetype) ? cb(null, true) : cb(new HttpError(415, 'Format de photo non accepté (JPEG, PNG ou WebP).', 'photo'))) });
 
 // Photo principale + 4 photos supplémentaires au maximum (5 photos par plante)
@@ -173,7 +173,7 @@ export function farmerRouter() {
     if (err instanceof multer.MulterError) return res.status(413).json({ message: 'Photo trop lourde (8 Mo maximum).', code: 'photo' });
     if (err instanceof HttpError || err?.expose) {
       if (err.code === 'session') res.clearCookie(COOKIE, { path: '/agriculteur' });
-      return res.status(err.status).json({ message: err.message, code: err.code });
+      return res.status(err.status).json({ message: err.message, code: err.code, ...(err.extra || {}) });
     }
     console.error('Espace agriculteur :', err);
     res.status(500).json({ message: 'Erreur du serveur.' });

@@ -30,7 +30,7 @@
     let res;
     try { res = await fetch('/agriculteur/api' + path, opts); } catch { throw Object.assign(new Error(NET), { offline: true }); }
     const data = await res.json().catch(() => null);
-    if (!res.ok) throw Object.assign(new Error(data?.message || 'Erreur du serveur.'), { status: res.status, code: data?.code });
+    if (!res.ok) throw Object.assign(new Error(data?.message || 'Erreur du serveur.'), { status: res.status, code: data?.code, existant: data?.existant });
     return data;
   }
   // Envoi avec barre de progression (les réseaux de campagne sont lents)
@@ -45,7 +45,7 @@
       x.onload = () => {
         let data = null; try { data = JSON.parse(x.responseText); } catch {}
         if (x.status >= 200 && x.status < 300) resolve(data);
-        else reject(Object.assign(new Error(data?.message || 'Erreur du serveur.'), { status: x.status, code: data?.code }));
+        else reject(Object.assign(new Error(data?.message || 'Erreur du serveur.'), { status: x.status, code: data?.code, existant: data?.existant }));
       };
       x.send(form);
     });
@@ -448,6 +448,42 @@
       <div class="mt-3 grid ${f.main ? 'grid-cols-3' : 'grid-cols-2'} gap-3">${f.main ? `<button type="button" data-act="crop" class="${btn}">${ICON.crop}Recadrer</button>` : ''}<label for="cam" class="${btn}">${ICON.camera('w-6 h-6')}Reprendre</label><label for="gal" class="${btn}">Galerie</label></div>${inputs}`;
   }
 
+  /* ----- Doublons : même nom (sans accents, majuscules ni pluriel) dans la même catégorie, parmi MES plantes ----- */
+  const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+    .split(' ').map((w) => (w.length > 3 ? w.replace(/[sx]$/, '') : w)).join(' ');
+  const ownDuplicate = (titre, categorie, exceptId) => {
+    const n = norm(titre); if (!n) return null;
+    return state.plantes.find((p) => p.id !== exceptId && p.categorie === categorie && norm(p.titre) === n) || null;
+  };
+  // Seul un nouveau nom ou une nouvelle catégorie peut créer un doublon (pas la simple modification d'un prix)
+  const nameChanged = (f) => !f.id || typeof f.id === 'string' || f.titre.trim() !== f.origTitre || f.categorie !== f.origCat;
+  function updateDupHint() {
+    const f = state.form, el = $('#dup-hint'); if (!el) return;
+    const dup = f.categorie && nameChanged(f) ? ownDuplicate(f.titre, f.categorie, f.id) : null;
+    if (!dup) { el.classList.add('hidden'); return; }
+    el.innerHTML = `Vous avez déjà « ${esc(dup.titre)} » dans cette catégorie. <a href="#/plante/${dup.id}" class="underline font-bold">Modifier celle-ci</a>`;
+    el.classList.remove('hidden');
+  }
+  // Fenêtre de choix : 'voir' (modifier la plante existante), 'creer' (variété différente) ou 'annuler'
+  function askDuplicate(dup) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Cette plante existe déjà');
+      ov.className = 'fixed inset-0 z-[70] bg-leaf-900/90 flex items-end justify-center p-4';
+      ov.innerHTML = `<div class="w-full max-w-md rounded-3xl bg-white text-leaf-900 p-5 space-y-3">
+        <h2 class="font-display font-extrabold text-2xl">Cette plante existe déjà</h2>
+        <p class="text-lg">Vous avez déjà « <strong>${esc(dup.titre)}</strong> » dans cette catégorie${dup.statut === 'publish' ? ' (en ligne)' : dup.statut ? ' (brouillon)' : ''}. Pour éviter un doublon, modifiez-la plutôt que d’en créer une seconde.</p>
+        ${dup.id ? `<button type="button" data-r="voir" class="w-full min-h-14 rounded-full bg-carrot text-leaf-900 font-display font-extrabold text-xl">Modifier « ${esc(dup.titre)} »</button>` : ''}
+        <button type="button" data-r="creer" class="w-full min-h-14 rounded-full border-2 border-leaf-900 font-display font-bold text-lg">C’est une autre variété : créer quand même</button>
+        <button type="button" data-r="annuler" class="w-full min-h-12 font-semibold underline underline-offset-4">Annuler</button></div>`;
+      const close = (r) => { window.removeEventListener('keydown', onKey); ov.remove(); resolve(r); };
+      const onKey = (e) => { if (e.key === 'Escape') close('annuler'); };
+      window.addEventListener('keydown', onKey);
+      ov.addEventListener('click', (e) => { const r = e.target.closest('[data-r]')?.dataset.r; if (r) close(r); });
+      document.body.appendChild(ov); ov.querySelector('[data-r]').focus();
+    });
+  }
+
   /* ----- Identification de la plante (façon Google Lens) ----- */
   const CONF = { forte: 'Très probable', moyenne: 'Probable', faible: 'Possible' };
   function identBlock() {
@@ -490,7 +526,7 @@
   function pickSuggestion(i) {
     const f = state.form, x = f.ident?.suggestions?.[i]; if (!x) return;
     if (f.titre.trim() && f.titre.trim() !== x.nom && !confirm(`Remplacer « ${f.titre.trim()} » par « ${x.nom} » ?`)) return;
-    f.titre = x.nom; $('#f-titre').value = x.nom; f.ident.picked = i; renderIdent();
+    f.titre = x.nom; $('#f-titre').value = x.nom; f.ident.picked = i; renderIdent(); updateDupHint();
   }
 
   /* ----- Photos supplémentaires : la principale + 4 au maximum ----- */
@@ -516,6 +552,7 @@
     if (state.form?.id !== (id || null) || state.form?.done) {
       const q = e ? entryFor(e) : null; // enregistrement en attente pour cette plante : on reprend sa photo
       state.form = {
+        origTitre: e?.titre || '', origCat: e?.categorie || '', forceDup: false,
         id: id || null, titre: e?.titre || '', nom_local: e?.nom_local || '', categorie: e?.categorie || '', prix: e?.prix ? String(e.prix) : '', conditionnement: e?.conditionnement || '',
         disponible: e ? e.disponible : true, description: e?.description || '', conseils: e?.conseils || '', statut: e?.statut || 'draft',
         photoUrl: q?.blob ? '' : (e?.photo || ''), main: q?.blob ? mkPhoto(q.blob, q.blob) : null, busy: false,
@@ -541,7 +578,8 @@
       <section aria-labelledby="l-extras"><h2 id="l-extras" class="${lab}">Autres photos <span class="text-base font-normal text-slate-700">(4 au maximum)</span></h2><div id="extras">${extrasBlock()}</div></section>
 
       <section><label for="f-titre" class="${lab}">Nom de la plante</label>
-        <input id="f-titre" value="${esc(f.titre)}" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Menthe, manguier, basilic…" class="w-full h-16 rounded-2xl border-2 border-leaf-100 bg-white px-4 text-xl focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60"></section>
+        <input id="f-titre" value="${esc(f.titre)}" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Menthe, manguier, basilic…" class="w-full h-16 rounded-2xl border-2 border-leaf-100 bg-white px-4 text-xl focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">
+        <p id="dup-hint" role="status" class="hidden mt-2 rounded-2xl bg-sun-soft px-4 py-3 font-semibold"></p></section>
 
       <section><label for="f-local" class="${lab}">Nom local (wolof)</label>
         <input id="f-local" value="${esc(f.nom_local)}" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Facultatif" class="w-full h-16 rounded-2xl border-2 border-leaf-100 bg-white px-4 text-xl focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">
@@ -598,10 +636,10 @@
   function bindForm() {
     const f = state.form, form = $('#plant');
     const text = (id, key) => $(id).addEventListener('input', (e) => { f[key] = e.target.value; });
-    text('#f-titre', 'titre'); text('#f-local', 'nom_local'); text('#f-desc', 'description'); text('#f-conseils', 'conseils');
+    text('#f-titre', 'titre'); $('#f-titre').addEventListener('input', updateDupHint); text('#f-local', 'nom_local'); text('#f-desc', 'description'); text('#f-conseils', 'conseils');
     $('#f-prix').addEventListener('input', (e) => { e.target.value = f.prix = e.target.value.replace(/\D/g, ''); });
     $('#f-dispo').addEventListener('change', (e) => { f.disponible = e.target.checked; });
-    form.addEventListener('change', (e) => { if (e.target.name === 'categorie') f.categorie = e.target.value; if (e.target.name === 'conditionnement') f.conditionnement = e.target.value; });
+    form.addEventListener('change', (e) => { if (e.target.name === 'categorie') { f.categorie = e.target.value; updateDupHint(); } if (e.target.name === 'conditionnement') f.conditionnement = e.target.value; });
     // Les champs « photo » sont recréés avec le bloc : on écoute au niveau du formulaire
     form.addEventListener('change', async (e) => {
       if (e.target.id !== 'cam' && e.target.id !== 'gal') return;
@@ -633,6 +671,7 @@
       const pick = e.target.closest('[data-pick]'); if (pick) pickSuggestion(Number(pick.dataset.pick));
     });
     $('#ia')?.addEventListener('click', describe);
+    updateDupHint();
     document.querySelectorAll('[data-save]').forEach((b) => b.addEventListener('click', () => save(b.dataset.save)));
   }
 
@@ -656,7 +695,18 @@
     const fields = {
       titre: f.titre.trim(), nom_local: f.nom_local.trim(), categorie: f.categorie, prix: f.prix || '0', conditionnement: f.conditionnement,
       disponible: f.disponible ? '1' : '0', description: f.description.trim(), conseils: f.conseils.trim(), statut,
+      ...(f.forceDup ? { force: '1' } : {}),
     };
+    // Doublon : on prévient avant tout traitement (aussi hors connexion, d'après les plantes déjà connues)
+    if (!f.forceDup && nameChanged(f)) {
+      const dup = ownDuplicate(f.titre, f.categorie, f.id);
+      if (dup) {
+        const r = await askDuplicate(dup);
+        if (r === 'annuler') return;
+        if (r === 'voir') { f.done = true; location.hash = '#/plante/' + dup.id; return; }
+        f.forceDup = true; fields.force = '1';
+      }
+    }
     // Traitement automatique des photos au clic : recadrage, 1600 px, WebP, sans métadonnées. Fait une seule fois par photo.
     let mainBlob = null; const extraBlobs = [];
     busy(true, 0, 'Préparation des photos…');
@@ -675,12 +725,24 @@
     if (navigator.onLine) {
       busy(true, 0);
       try {
-        const saved = await sendEntry(entry, (pct) => busy(true, pct));
+        // le serveur a le dernier mot : s'il connaît déjà cette plante (autre téléphone, liste pas à jour), même choix
+        const sendOnce = () => sendEntry(entry, (pct) => busy(true, pct));
+        const saved = await sendOnce().catch(async (err) => {
+          if (!(err.status === 409 && err.code === 'mbk_doublon') || entry.fields.force) throw err;
+          busy(false);
+          const ex = err.existant || {};
+          const r = await askDuplicate({ id: ex.id, titre: ex.titre || f.titre, statut: ex.statut });
+          if (r === 'voir' && ex.id) { f.done = true; location.hash = '#/plante/' + ex.id; }
+          if (r !== 'creer') throw Object.assign(new Error('abandon'), { abandon: true });
+          entry.fields.force = '1'; f.forceDup = true; busy(true, 0);
+          return sendOnce();
+        });
         await dequeue(key); mergeServer(saved); rebuild();
         cPut({ me: state.me, config: state.config, plantes: state.server }).catch(() => {});
         return done(statut === 'publish' ? (f.id && f.statut === 'publish' && !isLocal ? 'Modifications enregistrées' : 'Plante publiée') : 'Brouillon enregistré');
       } catch (e) {
         busy(false);
+        if (e.abandon) return;
         if (e.code === 'session') { try { await enqueue(entry); } catch {} return sessionLost(); } // rien n'est perdu : envoyé après la reconnexion
         if (!isNetErr(e)) return fail(e.message);
         // réseau coupé en cours d'envoi : on garde l'enregistrement sur le téléphone
