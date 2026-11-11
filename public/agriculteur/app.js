@@ -8,6 +8,72 @@
   // server : plantes connues du serveur ; queue : enregistrements en attente d'envoi ; plantes : ce que l'écran affiche (les deux fusionnés)
   const state = { me: null, config: null, server: [], queue: [], plantes: [], filter: 'tout', form: null, view: '', offline: false, snapAt: 0 };
 
+  /* ----- Dictée vocale (description, conseils) : reconnaissance vocale du navigateur, en français ----- */
+  // Chrome et Edge sur Android (et Safari récent) : le micro du téléphone, le texte s'écrit à la suite de ce qui est déjà saisi. Elle demande
+  // le réseau (le navigateur envoie la voix à son service de reconnaissance). Sans cette API, le bouton n'est pas affiché.
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let dict = null;   // { id, rec, active, base, final, tries }
+  // Ponctuation dite à voix haute (« virgule », « point final », « à la ligne »…)
+  const spoken = (t) => t
+    .replace(/\s*\bpoint d['’]interrogation\b/gi, ' ?').replace(/\s*\bpoint d['’]exclamation\b/gi, ' !')
+    .replace(/\s*\bpoint final(?=\s|$)/gi, '.').replace(/\s*\bvirgule\b/gi, ',')
+    .replace(/(^|\s)à la ligne(?=\s|$|[,.])\s*/gi, '\n').replace(/\s+([?!])/g, '\u202f$1');
+  const joinText = (base, add) => {
+    add = spoken(add.replace(/ {2,}/g, ' ').trim()); if (!add) return base;
+    const sep = !base || /[\s\n]$/.test(base) || /^[,.\n]/.test(add) ? '' : ' ';
+    const out = base + sep + add;
+    return /^\s*$/.test(base) ? out.charAt(0).toUpperCase() + out.slice(1) : out;   // majuscule au début d'un champ vide
+  };
+  function dictNote(id, msg) { const n = document.querySelector(`[data-dnote="${id}"]`); if (n) n.textContent = msg || ''; }
+  function dictButtons() {
+    document.querySelectorAll('[data-dictee]').forEach((b) => {
+      const on = dict?.id === b.dataset.dictee;
+      b.setAttribute('aria-pressed', String(on));
+      b.classList.toggle('bg-carrot', on); b.classList.toggle('bg-white', !on);
+      b.querySelector('span').textContent = on ? 'Arrêter la dictée' : 'Dicter';
+    });
+  }
+  function stopDictation(msg) {
+    if (!dict) return;
+    const d = dict; dict = null; d.active = false;
+    try { d.rec.stop(); } catch {}
+    dictButtons(); dictNote(d.id, msg || '');
+  }
+  function startDictation(id) {
+    if (!SR) return;
+    if (dict) { const same = dict.id === id; stopDictation(); if (same) return; }
+    const el = document.getElementById(id); if (!el) return;
+    const key = id === 'f-desc' ? 'description' : 'conseils';
+    const d = { id, active: true, tries: 0, rec: null };
+    dict = d;
+    const begin = () => {
+      const rec = d.rec = new SR();
+      rec.lang = 'fr-FR'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      const base = el.value; let got = false;
+      rec.onresult = (e) => {
+        got = true; d.tries = 0;
+        // on reconstruit à chaque fois depuis tous les résultats de la session : pas de texte répété
+        let fin = '', tmp = '';
+        for (const r of e.results) (r.isFinal ? (fin += ' ' + r[0].transcript) : (tmp += ' ' + r[0].transcript));
+        el.value = joinText(joinText(base, fin), tmp).slice(0, el.maxLength > 0 ? el.maxLength : undefined);
+        state.form[key] = el.value;
+      };
+      rec.onerror = (e) => {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') stopDictation('Le micro est refusé. Autorisez-le dans les réglages du navigateur pour ce site.');
+        else if (e.error === 'network') stopDictation('La dictée demande une connexion Internet.');
+        else if (e.error === 'audio-capture') stopDictation('Aucun micro n’a été trouvé.');
+      };
+      rec.onend = () => {                                     // le navigateur coupe après un silence : on repart tant que l'agriculteur n'a pas arrêté
+        if (dict !== d || !d.active) return;
+        if (!got && ++d.tries >= 3) return stopDictation('Je n’ai rien entendu. Appuyez sur Dicter pour réessayer.');
+        setTimeout(() => { if (dict === d && d.active) { try { begin(); } catch { stopDictation(); } } }, 250);
+      };
+      rec.start();
+    };
+    try { begin(); } catch { dict = null; return dictNote(id, 'La dictée n’a pas pu démarrer.'); }
+    dictButtons(); dictNote(id, 'Je vous écoute : parlez, puis appuyez pour arrêter. Dites « virgule », « point final » ou « à la ligne ».');
+  }
+
   /* ----- Photos en ligne visibles hors connexion ----- */
   // Les photos sont sur un autre domaine : le navigateur ne peut pas les garder lui-même de façon fiable. Après chaque actualisation de la
   // liste, l'application les télécharge une fois via le relais du serveur (même domaine), le service worker les garde (cache « mbk-photos »)
@@ -48,6 +114,7 @@
     camera: (c = 'w-8 h-8') => `<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.4h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.8"/></svg>`,
     spark: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9L12 2Zm7 12 .9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9L19 14ZM5 15l.7 2 2 .7-2 .7L5 20.4l-.7-2-2-.7 2-.7L5 15Z"/></svg>`,
     crop: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>`,
+    mic: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5V22"/></svg>`,
     back: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>`,
     leaf: `<svg class="w-14 h-14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 2C9 2 3 6 3 12c0 1.5.5 2.8 1.3 3.8C5 12 8 9 12 7.5 8.5 9.5 6 12.5 5 17c.5.2 1 .3 1.5.3 6 0 10.5-5 10.5-11.5V2Z"/></svg>`,
   };
@@ -711,11 +778,13 @@
           <p id="ia-note" role="status" class="mt-2 text-base text-slate-700">Il lit votre photo et le nom, puis propose un texte que vous corrigez.</p>
           <p id="ia-warn" role="status" class="hidden mt-2 rounded-2xl bg-sun-soft px-4 py-3 font-semibold"></p>
         </div>` : ''}
-        <textarea id="f-desc" rows="4" maxlength="1500" placeholder="Variété, taille, état des plants…" class="w-full rounded-2xl border-2 border-leaf-100 bg-white p-4 text-xl leading-snug focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">${esc(f.description)}</textarea></section>
+        <textarea id="f-desc" rows="4" maxlength="1500" placeholder="Variété, taille, état des plants…" class="w-full rounded-2xl border-2 border-leaf-100 bg-white p-4 text-xl leading-snug focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">${esc(f.description)}</textarea>
+        ${dictBtn('f-desc')}</section>
 
       <details class="rounded-2xl bg-white border-2 border-leaf-100" ${f.conseils ? 'open' : ''}>
         <summary class="min-h-16 px-4 flex items-center font-display font-bold text-xl cursor-pointer">Conseils d’entretien (facultatif)</summary>
-        <div class="px-4 pb-4"><textarea id="f-conseils" rows="3" maxlength="1000" placeholder="Arrosage, soleil, quand récolter…" class="w-full rounded-2xl border-2 border-leaf-100 bg-leaf-50 p-4 text-xl leading-snug focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">${esc(f.conseils)}</textarea></div>
+        <div class="px-4 pb-4"><textarea id="f-conseils" rows="3" maxlength="1000" placeholder="Arrosage, soleil, quand récolter…" class="w-full rounded-2xl border-2 border-leaf-100 bg-leaf-50 p-4 text-xl leading-snug focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">${esc(f.conseils)}</textarea>
+          ${dictBtn('f-conseils')}</div>
       </details>
 
       ${id ? `<p class="pt-2 text-center"><button type="button" data-act="remove" class="min-h-12 px-4 font-bold text-red-800 underline underline-offset-4">${typeof id === 'string' ? 'Supprimer cet enregistrement' : 'Retirer cette plante'}</button></p>` : ''}
@@ -733,6 +802,9 @@
     </div>`;
     bindForm();
   }
+
+  const dictBtn = (id) => (SR ? `<button type="button" data-dictee="${id}" aria-pressed="false" class="mt-2 w-full flex items-center justify-center gap-2.5 min-h-14 rounded-2xl border-2 border-leaf-900 bg-white text-leaf-900 font-display font-bold text-xl active:bg-leaf-100">${ICON.mic}<span>Dicter</span></button>
+        <p data-dnote="${id}" role="status" class="mt-1 text-base text-slate-700"></p>` : '');
 
   function bindForm() {
     const f = state.form, form = $('#plant');
@@ -766,6 +838,7 @@
         else { const [x] = f.extras.splice(Number(v), 1); dropPhoto(x); }
         renderExtras();
       }
+      const dc = e.target.closest('[data-dictee]'); if (dc) startDictation(dc.dataset.dictee);
       if (e.target.closest('[data-act="identify"]')) identify();
       if (e.target.closest('[data-act="crop"]') && f.main) cropPhoto(f.main);
       if (e.target.closest('[data-act="edit-main"]')) editOnline('main');
@@ -791,6 +864,7 @@
   };
 
   async function save(statut) {
+    stopDictation();
     const f = state.form; $('#err').classList.add('hidden');
     if (f.titre.trim().length < 2) return fail('Indiquez le nom de la plante.', 'f-titre');
     if (!f.categorie) return fail('Choisissez une catégorie.', 'f-categorie');
@@ -857,6 +931,7 @@
 
   /* ----- Assistant : propose description et conseils (l'agriculteur relit toujours) ----- */
   async function describe() {
+    stopDictation();
     const f = state.form, btn = $('#ia'), label = $('#ia-label'), note = $('#ia-note'), warn = $('#ia-warn');
     warn.classList.add('hidden');
     if (!navigator.onLine) { note.textContent = 'Hors connexion : l’assistant a besoin du réseau. Écrivez la description vous-même ou relancez-le plus tard.'; return; }
@@ -953,6 +1028,7 @@
 
   /* ---------------- Démarrage ---------------- */
   function route() {
+    stopDictation();
     if (!state.me) return;
     const h = location.hash.replace(/^#\/?/, '');
     window.scrollTo(0, 0);
@@ -995,7 +1071,7 @@
     await refreshServer(); refreshView();
     toast(`${ev.data.sent} ${plural(ev.data.sent, 'enregistrement envoyé', 'enregistrements envoyés')} en arrière-plan`);
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) flush(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopDictation(); else flush(); });
   setInterval(() => { if (state.queue.length) flush(); }, 20000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/agriculteur/sw.js', { scope: '/agriculteur/' }).catch(() => {});
   boot();
