@@ -51,6 +51,49 @@ function mbk_api_own_plant(int $id) {
   return $p;
 }
 
+/**
+ * Forme comparable d'un nom de plante : sans accents, majuscules, ponctuation ni pluriel simple.
+ * « Citronniers », « citronnier » et « Citronnier. » donnent le même résultat ; « Papayer nain » reste différent de « Papayer » (autre variété).
+ */
+function mbk_api_norm(string $s): string {
+  $s = strtolower(remove_accents(html_entity_decode($s, ENT_QUOTES, 'UTF-8')));
+  $s = trim(preg_replace('/[^a-z0-9]+/', ' ', $s));
+  if ($s === '') return '';
+  $words = array_map(function ($w) { return strlen($w) > 3 ? preg_replace('/[sx]$/', '', $w) : $w; }, preg_split('/\s+/', $s));
+  return implode(' ', $words);
+}
+
+/** Une autre plante du MÊME agriculteur avec le même nom (comparable) et la même catégorie, ou null. */
+function mbk_api_find_duplicate(string $titre, string $categorie, int $author, int $exclude = 0) {
+  $norm = mbk_api_norm($titre);
+  if ($norm === '') return null;
+  $posts = get_posts([
+    'post_type' => MBK_CPT, 'author' => $author, 'post_status' => ['publish', 'draft', 'pending', 'private'],
+    'posts_per_page' => 500, 'exclude' => $exclude ? [$exclude] : [],
+  ]);
+  foreach ($posts as $p) {
+    if (mbk_api_norm(get_the_title($p)) === $norm && (string) mbk_api_get($p->ID, MBK_UNIVERS_META) === $categorie) return $p;
+  }
+  return null;
+}
+
+/** Réponse 409 : la plante existe déjà (avec ses données, pour que l'application propose de la modifier). */
+function mbk_api_duplicate_error(WP_Post $dup) {
+  return new WP_Error('mbk_doublon', 'Vous avez déjà « ' . html_entity_decode(get_the_title($dup), ENT_QUOTES, 'UTF-8') . ' » dans cette catégorie.', ['status' => 409, 'existant' => mbk_api_plante($dup)]);
+}
+
+function mbk_api_wants_force(WP_REST_Request $r): bool {
+  return in_array((string) $r->get_param('force'), ['1', 'true'], true);
+}
+
+/** Identifiants des photos déjà rattachées à une plante : image à la une + galerie. */
+function mbk_api_post_attachments(int $post_id): array {
+  $ids = array_filter(array_map('intval', (array) get_post_meta($post_id, MBK_GAL, true)));
+  $thumb = (int) get_post_thumbnail_id($post_id);
+  if ($thumb) $ids[] = $thumb;
+  return array_values(array_unique($ids));
+}
+
 /** Photos supplémentaires d'une plante : [['id' => …, 'url' => miniature], …] */
 function mbk_api_gallery_items(int $post_id): array {
   $out = [];
@@ -131,11 +174,19 @@ function mbk_api_apply(int $id, array $f): void {
 /** Enregistre le fichier envoyé sous le champ $key et retourne l'identifiant du média (0 si aucun fichier). Le filtre d'optimisation s'applique à l'envoi. */
 function mbk_api_upload(string $key, int $post_id) {
   if (empty($_FILES[$key]) || (int) ($_FILES[$key]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return 0;
+  // Empreinte du fichier reçu : la même photo envoyée deux fois pour la même plante n'est enregistrée qu'une fois
+  $hash = !empty($_FILES[$key]['tmp_name']) ? @sha1_file($_FILES[$key]['tmp_name']) : false;
+  if ($hash) {
+    foreach (mbk_api_post_attachments($post_id) as $existing) {
+      if (get_post_meta($existing, '_mbk_sha1', true) === $hash) return (int) $existing;
+    }
+  }
   require_once ABSPATH . 'wp-admin/includes/file.php';
   require_once ABSPATH . 'wp-admin/includes/media.php';
   require_once ABSPATH . 'wp-admin/includes/image.php';
   $att = media_handle_upload($key, $post_id);
   if (is_wp_error($att)) return new WP_Error('mbk_photo', 'La photo n’a pas pu être enregistrée : ' . $att->get_error_message(), ['status' => 400]);
+  if ($hash) update_post_meta($att, '_mbk_sha1', $hash);
   return (int) $att;
 }
 
@@ -159,6 +210,7 @@ function mbk_api_gallery(int $post_id, WP_REST_Request $r) {
     $att = mbk_api_upload('extra_' . $i, $post_id);
     if (is_wp_error($att)) return $att;
     if (!$att) continue;
+    if ($att === (int) get_post_thumbnail_id($post_id) || in_array($att, $ids, true)) continue; // photo déjà présente (principale ou galerie)
     if (count($ids) >= MBK_GAL_MAX) { wp_delete_attachment($att, true); continue; } // 5 photos au maximum : la principale + 4
     $ids[] = $att;
   }
@@ -267,6 +319,7 @@ function mbk_api_create(WP_REST_Request $r) {
   }
   $f = mbk_api_fields($r);
   if (is_wp_error($f)) return $f;
+  if (!mbk_api_wants_force($r) && ($dup = mbk_api_find_duplicate($f['titre'], $f['categorie'], get_current_user_id()))) return mbk_api_duplicate_error($dup);
   $status = $f['statut'] ?? 'draft';
   $has_file = !empty($_FILES['photo']) && (int) ($_FILES['photo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
   if ($status === 'publish' && !$has_file) return new WP_Error('mbk_photo', 'Ajoutez une photo de votre plante avant de publier.', ['status' => 400]);
@@ -289,6 +342,10 @@ function mbk_api_update(WP_REST_Request $r) {
   if (is_wp_error($p)) return $p;
   $f = mbk_api_fields($r, true);
   if (is_wp_error($f)) return $f;
+  if ((isset($f['titre']) || isset($f['categorie'])) && !mbk_api_wants_force($r)) {
+    $dup = mbk_api_find_duplicate($f['titre'] ?? html_entity_decode(get_the_title($p), ENT_QUOTES, 'UTF-8'), $f['categorie'] ?? (string) mbk_api_get($p->ID, MBK_UNIVERS_META), (int) $p->post_author, $p->ID);
+    if ($dup) return mbk_api_duplicate_error($dup);
+  }
 
   $photo = mbk_api_photo($p->ID);
   if (is_wp_error($photo)) return $photo;

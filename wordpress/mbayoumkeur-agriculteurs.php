@@ -3,19 +3,19 @@
  * Plugin Name: Mbayoumkeur – Espace agriculteur (chargeur protégé)
  * Description: Charge, dans cet ordre, mbayoumkeur-agriculteurs/core.php (rôle, confidentialité), backoffice.php (habillage),
  *              api.php (API de l'application agriculteur), images.php (optimisation des photos) et mobile.php
- *              (agriculteurs sur téléphone dirigés vers l'application).
+ *              (agriculteurs sur téléphone dirigés vers l'application) et doublons.php (outil Doublons de plantes).
  *              Disjoncteur : un fichier absent, ou qui provoque une erreur fatale, est mis à l'écart automatiquement
  *              (le reste du site continue de fonctionner) et un message s'affiche dans l'administration.
  *              Il est réessayé dès que le fichier est remplacé.
  *
- * À copier dans wp-content/mu-plugins/ avec le dossier mbayoumkeur-agriculteurs/ (qui contient aussi images.php et mobile.php).
+ * À copier dans wp-content/mu-plugins/ avec le dossier mbayoumkeur-agriculteurs/ (qui contient aussi images.php, mobile.php et doublons.php).
  */
 if (!defined('ABSPATH')) exit;
 
 (function () {
   $dir = __DIR__ . '/mbayoumkeur-agriculteurs/';
   $state = (defined('WP_CONTENT_DIR') ? WP_CONTENT_DIR : dirname(__DIR__)) . '/mbk-loader-state/';
-  $files = ['core.php', 'backoffice.php', 'api.php', 'images.php', 'mobile.php'];
+  $files = ['core.php', 'backoffice.php', 'api.php', 'images.php', 'mobile.php', 'doublons.php'];
 
   // Met un fichier à l'écart : 1re ligne = empreinte du fichier fautif, puis la date et l'erreur
   $disable = function ($file, $message) use ($dir, $state) {
