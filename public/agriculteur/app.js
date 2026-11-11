@@ -17,6 +17,7 @@
   const ICON = {
     camera: (c = 'w-8 h-8') => `<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.4h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.8"/></svg>`,
     spark: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9L12 2Zm7 12 .9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9L19 14ZM5 15l.7 2 2 .7-2 .7L5 20.4l-.7-2-2-.7 2-.7L5 15Z"/></svg>`,
+    crop: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>`,
     back: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>`,
     leaf: `<svg class="w-14 h-14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 2C9 2 3 6 3 12c0 1.5.5 2.8 1.3 3.8C5 12 8 9 12 7.5 8.5 9.5 6 12.5 5 17c.5.2 1 .3 1.5.3 6 0 10.5-5 10.5-11.5V2Z"/></svg>`,
   };
@@ -165,24 +166,155 @@
   }
   const refreshView = () => { if (state.view === 'home') viewHome(); };
 
-  /* ---------------- Photo : réduite sur le téléphone avant l'envoi ---------------- */
-  // 4 à 8 Mo en sortie d'appareil photo seraient trop lourds en 3G : on envoie ~200–400 Ko.
-  // Le canvas redresse la photo et ne conserve aucune métadonnée (donc pas de position GPS).
-  async function compress(file, max = 1600) {
-    let bmp;
-    try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
-    catch {
-      bmp = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = URL.createObjectURL(file); });
-    }
-    const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
-    const k = Math.min(1, max / Math.max(w, h));
+  /* ---------------- Photos : recadrage, puis traitement automatique à la publication ---------------- */
+  // La photo prise reste intacte sur le téléphone (aperçu, recadrage, rotation). Au clic sur « Publier » ou « Brouillon », elle est
+  // recadrée, redimensionnée (1600 px au plus), convertie en WebP et débarrassée de ses métadonnées (donc de la position GPS) :
+  // 4 à 8 Mo en sortie d'appareil photo seraient trop lourds en 3G, on envoie ~200–400 Ko.
+  const toBlob = async (c, q = 0.8) => {
+    let b = await new Promise((r) => c.toBlob(r, 'image/webp', q));
+    if (!b || b.type !== 'image/webp') b = await new Promise((r) => c.toBlob(r, 'image/jpeg', q + 0.02)); // Safari ne sait pas écrire en WebP
+    return b;
+  };
+  async function loadBitmap(src) {
+    try { return await createImageBitmap(src, { imageOrientation: 'from-image' }); }
+    catch { return await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = URL.createObjectURL(src); }); }
+  }
+  const dims = (b) => [b.width || b.naturalWidth, b.height || b.naturalHeight];
+  // Image redressée puis pivotée (rot : 0, 90, 180 ou 270), au plus `max` pixels sur le grand côté
+  function oriented(bmp, rot, max) {
+    const [w, h] = dims(bmp), quarter = rot % 180 !== 0, rw = quarter ? h : w, rh = quarter ? w : h;
+    const k = Math.min(1, max / Math.max(rw, rh));
     const c = document.createElement('canvas');
-    c.width = Math.round(w * k); c.height = Math.round(h * k);
-    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-    const to = (type, q) => new Promise((r) => c.toBlob(r, type, q));
-    let blob = await to('image/webp', 0.8);
-    if (!blob || blob.type !== 'image/webp') blob = await to('image/jpeg', 0.82); // Safari ne sait pas écrire en WebP
-    return blob;
+    c.width = Math.max(1, Math.round(rw * k)); c.height = Math.max(1, Math.round(rh * k));
+    const g = c.getContext('2d');
+    g.translate(c.width / 2, c.height / 2); g.rotate((rot * Math.PI) / 180);
+    g.drawImage(bmp, -(w * k) / 2, -(h * k) / 2, w * k, h * k);
+    return c;
+  }
+  // Rend la photo (avec son recadrage : fractions x, y, w, h de l'image pivotée) en un Blob de `max` pixels au plus
+  async function renderPhoto(p, max = 1600, q = 0.8) {
+    const bmp = await loadBitmap(p.source);
+    const cr = p.crop || { rot: 0, x: 0, y: 0, w: 1, h: 1 };
+    const [bw, bh] = dims(bmp), quarter = cr.rot % 180 !== 0, rw = quarter ? bh : bw, rh = quarter ? bw : bh;
+    const k = Math.min(1, max / Math.max(cr.w * rw, cr.h * rh));
+    const full = oriented(bmp, cr.rot, Math.max(rw, rh) * k);   // l'image entière, déjà à l'échelle finale
+    const out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(cr.w * full.width)); out.height = Math.max(1, Math.round(cr.h * full.height));
+    out.getContext('2d').drawImage(full, cr.x * full.width, cr.y * full.height, cr.w * full.width, cr.h * full.height, 0, 0, out.width, out.height);
+    if (bmp.close) bmp.close();
+    return toBlob(out, q);
+  }
+  // Une photo du formulaire : l'original (source), son recadrage éventuel, un aperçu, et le résultat traité une fois calculé
+  const mkPhoto = (source, processed = null) => ({ source, url: URL.createObjectURL(source), preview: '', crop: null, processed, _light: null });
+  const shown = (p) => p.preview || p.url;
+  const dropPhoto = (p) => { if (!p) return; URL.revokeObjectURL(p.url); if (p.preview) URL.revokeObjectURL(p.preview); };
+  const finalBlob = async (p) => (p.processed ??= await renderPhoto(p, 1600, 0.8));   // calculé à la publication, une seule fois
+  const lightBlob = async (p) => (p._light ??= await renderPhoto(p, 1024, 0.75));     // version légère pour l'assistant
+  async function refreshPreview(p) {
+    const b = await renderPhoto(p, 900, 0.8);
+    if (p.preview) URL.revokeObjectURL(p.preview);
+    p.preview = URL.createObjectURL(b);
+  }
+
+  /* ----- Éditeur de recadrage : on glisse la photo sous le cadre, on pince ou on règle le zoom ----- */
+  const RATIOS = [['1:1', 'Carré', 1], ['4:3', 'Paysage', 4 / 3], ['3:4', 'Portrait', 3 / 4]];
+  async function openCropper(photo) {
+    const bmp = await loadBitmap(photo.source);
+    return new Promise((resolve) => {
+      const st = { rot: photo.crop?.rot || 0, ratio: photo.crop?.ratio || '1:1', zoom: photo.crop?.zoom || 1, cx: photo.crop?.cx ?? 0.5, cy: photo.crop?.cy ?? 0.5 };
+      let wc;
+      const ov = document.createElement('div');
+      ov.id = 'cropper'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Recadrer la photo');
+      ov.className = 'fixed inset-0 z-[70] bg-black text-white flex flex-col';
+      ov.innerHTML = `
+        <header class="flex items-center justify-between gap-3 px-3 pt-[max(.75rem,env(safe-area-inset-top))] pb-3">
+          <button type="button" data-c="cancel" class="min-h-12 px-5 rounded-full border-2 border-white/50 font-bold text-lg">Annuler</button>
+          <h2 class="font-display font-bold text-xl">Recadrer</h2>
+          <button type="button" data-c="ok" class="min-h-12 px-6 rounded-full bg-carrot text-leaf-900 font-display font-extrabold text-xl">Valider</button>
+        </header>
+        <div id="crop-area" class="relative flex-1 overflow-hidden touch-none select-none bg-neutral-900" tabindex="0" role="group" aria-label="Zone de recadrage : glissez la photo pour la déplacer, pincez pour agrandir. Au clavier : flèches pour déplacer, plus et moins pour le zoom.">
+          <canvas id="crop-img" class="absolute max-w-none"></canvas>
+          <div id="crop-frame" class="absolute border-2 border-white pointer-events-none" style="box-shadow:0 0 0 9999px rgba(0,0,0,.62)"></div>
+        </div>
+        <div class="px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-3 bg-leaf-900">
+          <div class="flex items-center gap-2" role="group" aria-label="Format du cadre">
+            ${RATIOS.map((r) => `<button type="button" data-ratio="${r[0]}" aria-pressed="false" class="flex-1 min-h-12 rounded-full border-2 border-white/50 font-bold aria-pressed:bg-white aria-pressed:text-leaf-900 aria-pressed:border-white">${r[1]}</button>`).join('')}
+            <button type="button" data-c="rotate" aria-label="Pivoter d’un quart de tour" class="min-h-12 w-14 rounded-full border-2 border-white/50 font-bold text-2xl leading-none">⟳</button>
+          </div>
+          <label class="flex items-center gap-3 font-semibold">Zoom <input id="crop-zoom" type="range" min="1" max="5" step="0.01" value="1" class="flex-1 h-8 accent-[#fc7404]"></label>
+        </div>`;
+      document.body.appendChild(ov); document.body.style.overflow = 'hidden';
+      const area = ov.querySelector('#crop-area'), cv = ov.querySelector('#crop-img'), frame = ov.querySelector('#crop-frame'), zoomEl = ov.querySelector('#crop-zoom');
+      const clamp = (z) => Math.min(5, Math.max(1, z));
+      const geo = () => {
+        const A = area.getBoundingClientRect(), r = RATIOS.find((x) => x[0] === st.ratio)[2], pad = 20;
+        let fw = Math.max(40, A.width - pad * 2), fh = fw / r;
+        if (fh > A.height - pad * 2) { fh = Math.max(40, A.height - pad * 2); fw = fh * r; }
+        const iw = wc.width, ih = wc.height, s = Math.max(fw / iw, fh / ih) * st.zoom;
+        return { A, fw, fh, iw, ih, s, hx: fw / (2 * s * iw), hy: fh / (2 * s * ih) };
+      };
+      const build = () => { wc = oriented(bmp, st.rot, 1600); cv.width = wc.width; cv.height = wc.height; cv.getContext('2d').drawImage(wc, 0, 0); };
+      const draw = () => {
+        const g = geo();
+        st.cx = g.hx >= 0.5 ? 0.5 : Math.min(1 - g.hx, Math.max(g.hx, st.cx));
+        st.cy = g.hy >= 0.5 ? 0.5 : Math.min(1 - g.hy, Math.max(g.hy, st.cy));
+        cv.style.width = g.iw * g.s + 'px'; cv.style.height = g.ih * g.s + 'px';
+        cv.style.left = g.A.width / 2 - st.cx * g.iw * g.s + 'px'; cv.style.top = g.A.height / 2 - st.cy * g.ih * g.s + 'px';
+        frame.style.width = g.fw + 'px'; frame.style.height = g.fh + 'px'; frame.style.left = (g.A.width - g.fw) / 2 + 'px'; frame.style.top = (g.A.height - g.fh) / 2 + 'px';
+        zoomEl.value = st.zoom;
+        ov.querySelectorAll('[data-ratio]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.ratio === st.ratio)));
+      };
+      const ptrs = new Map(); let pinch = 0;
+      area.addEventListener('pointerdown', (e) => { area.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); pinch = 0; });
+      area.addEventListener('pointermove', (e) => {
+        if (!ptrs.has(e.pointerId)) return;
+        const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+        const g = geo();
+        if (ptrs.size === 1) { st.cx -= (e.clientX - prev[0]) / (g.s * g.iw); st.cy -= (e.clientY - prev[1]) / (g.s * g.ih); }
+        else if (ptrs.size === 2) {
+          const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+          if (pinch) st.zoom = clamp(st.zoom * (d / pinch));
+          pinch = d;
+        }
+        draw();
+      });
+      const up = (e) => { ptrs.delete(e.pointerId); pinch = 0; };
+      area.addEventListener('pointerup', up); area.addEventListener('pointercancel', up);
+      area.addEventListener('wheel', (e) => { e.preventDefault(); st.zoom = clamp(st.zoom * (e.deltaY < 0 ? 1.1 : 0.9)); draw(); }, { passive: false });
+      area.addEventListener('keydown', (e) => {
+        const step = 0.03;
+        if (e.key === 'ArrowLeft') st.cx -= step; else if (e.key === 'ArrowRight') st.cx += step;
+        else if (e.key === 'ArrowUp') st.cy -= step; else if (e.key === 'ArrowDown') st.cy += step;
+        else if (e.key === '+' || e.key === '=') st.zoom = clamp(st.zoom * 1.1); else if (e.key === '-') st.zoom = clamp(st.zoom / 1.1); else return;
+        e.preventDefault(); draw();
+      });
+      zoomEl.addEventListener('input', () => { st.zoom = clamp(Number(zoomEl.value)); draw(); });
+      const onKey = (e) => { if (e.key === 'Escape') close(false); };
+      const onResize = () => draw();
+      window.addEventListener('keydown', onKey); window.addEventListener('resize', onResize);
+      function close(ok) {
+        if (ok) { const g = geo(); photo.crop = { rot: st.rot, ratio: st.ratio, zoom: st.zoom, cx: st.cx, cy: st.cy, x: st.cx - g.hx, y: st.cy - g.hy, w: 2 * g.hx, h: 2 * g.hy }; }
+        window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize);
+        ov.remove(); document.body.style.overflow = ''; if (bmp.close) bmp.close();
+        resolve(ok);
+      }
+      ov.addEventListener('click', (e) => {
+        const c = e.target.closest('[data-c]')?.dataset.c, r = e.target.closest('[data-ratio]')?.dataset.ratio;
+        if (c === 'cancel') close(false); else if (c === 'ok') close(true);
+        else if (c === 'rotate') { st.rot = (st.rot + 90) % 360; st.cx = st.cy = 0.5; st.zoom = 1; build(); draw(); }
+        else if (r) { st.ratio = r; draw(); }
+      });
+      build(); draw(); ov.querySelector('[data-c="ok"]').focus();
+    });
+  }
+  async function cropPhoto(p) {
+    let ok;
+    try { ok = await openCropper(p); } catch { return toast('Cette photo n’a pas pu être ouverte pour le recadrage.', 'err'); }
+    if (!ok) return;
+    p.processed = null; p._light = null;                 // le recadrage a changé : le traitement sera refait à la publication
+    try { await refreshPreview(p); } catch {}
+    const f = state.form; if (!f) return;
+    if (f.main === p) { $('#photo').innerHTML = photoBlock(); f.ident = null; renderIdent(); } else renderExtras();
   }
   const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' Mo' : Math.max(1, Math.round(n / 1024)) + ' Ko');
 
@@ -208,6 +340,7 @@
         <p id="err" role="alert" class="${msg ? '' : 'hidden'} rounded-2xl bg-carrot text-leaf-900 font-bold px-4 py-3">${esc(msg)}</p>
         <button class="w-full min-h-16 rounded-full bg-carrot text-leaf-900 font-display font-extrabold text-2xl shadow-[0_5px_0_rgba(0,0,0,.25)] active:translate-y-[3px] active:shadow-none">Se connecter</button>
       </form>
+      <p class="mt-auto pt-10 text-center"><a href="/" class="inline-flex items-center justify-center gap-2 min-h-14 px-6 rounded-full border-2 border-white/50 font-semibold text-lg active:bg-white/10">${ICON.back}Retour au site Mbayoumkeur</a></p>
     </main>`;
     const form = $('#login'), err = $('#err');
     $('#show').addEventListener('click', (e) => { const p = $('#p'); const on = p.type === 'password'; p.type = on ? 'text' : 'password'; e.currentTarget.textContent = on ? 'Cacher' : 'Voir'; e.currentTarget.setAttribute('aria-pressed', on); });
@@ -302,7 +435,7 @@
 
   function photoBlock() {
     const f = state.form;
-    const src = f.blob ? f.previewUrl : f.photoUrl;
+    const src = f.main ? shown(f.main) : f.photoUrl;
     const inputs = `<input id="cam" type="file" accept="image/*" capture="environment" class="sr-only"><input id="gal" type="file" accept="image/*" class="sr-only">`;
     const btn = 'flex items-center justify-center gap-2 min-h-14 rounded-2xl border-2 border-leaf-900 font-bold text-lg active:bg-leaf-100 cursor-pointer';
     if (f.busy) return `<div class="flex items-center justify-center min-h-56 rounded-3xl bg-white border-2 border-leaf-100 font-display font-bold text-2xl" role="status">Préparation de la photo…</div>${inputs}`;
@@ -310,16 +443,16 @@
       <label for="cam" id="f-photo" tabindex="-1" class="flex flex-col items-center justify-center gap-3 min-h-56 rounded-3xl border-4 border-dashed border-leaf-600 bg-white text-leaf-700 font-display font-extrabold text-2xl text-center p-6 cursor-pointer active:bg-leaf-100">${ICON.camera('w-16 h-16')}Prendre une photo</label>
       <p class="mt-3 text-center"><label for="gal" class="inline-flex items-center min-h-12 px-3 underline underline-offset-4 font-semibold cursor-pointer">Ou choisir dans la galerie</label></p>${inputs}`;
     return `
-      <div class="relative rounded-3xl overflow-hidden bg-leaf-50 aspect-[4/3] border-2 border-leaf-100"><img src="${esc(src)}" alt="Photo de la plante" class="w-full h-full object-cover"></div>
-      ${f.blob ? `<p class="mt-2 text-slate-700">Photo prête, ${esc(kb(f.blob.size))}.</p>` : ''}
-      <div class="mt-3 grid grid-cols-2 gap-3"><label for="cam" class="${btn}">${ICON.camera('w-6 h-6')}Reprendre</label><label for="gal" class="${btn}">Galerie</label></div>${inputs}`;
+      <div class="relative rounded-3xl overflow-hidden bg-leaf-50 aspect-[4/3] border-2 border-leaf-100"><img src="${esc(src)}" alt="Photo de la plante" class="w-full h-full object-contain"></div>
+      ${f.main ? `<p class="mt-2 text-slate-700">${f.main.crop ? 'Photo recadrée. ' : ''}Elle est préparée automatiquement quand vous publiez.</p>` : ''}
+      <div class="mt-3 grid ${f.main ? 'grid-cols-3' : 'grid-cols-2'} gap-3">${f.main ? `<button type="button" data-act="crop" class="${btn}">${ICON.crop}Recadrer</button>` : ''}<label for="cam" class="${btn}">${ICON.camera('w-6 h-6')}Reprendre</label><label for="gal" class="${btn}">Galerie</label></div>${inputs}`;
   }
 
   /* ----- Identification de la plante (façon Google Lens) ----- */
   const CONF = { forte: 'Très probable', moyenne: 'Probable', faible: 'Possible' };
   function identBlock() {
     const f = state.form, st = f.ident || { status: 'idle' };
-    if (!state.config?.ia || !f.blob) return '';
+    if (!state.config?.ia || !f.main) return '';
     const btn = (label) => `<button type="button" data-act="identify" class="w-full flex items-center justify-center gap-2.5 min-h-14 rounded-2xl border-2 border-leaf-900 bg-white text-leaf-900 font-display font-bold text-xl active:bg-leaf-100">${ICON.spark}${label}</button>`;
     if (st.status === 'loading') return `<p role="status" class="rounded-2xl bg-leaf-50 border-2 border-leaf-100 px-4 py-4 font-display font-bold text-xl">L’assistant regarde votre photo…</p>`;
     if (st.status === 'error') return `<p role="status" class="rounded-2xl bg-sun-soft px-4 py-3 font-semibold">${esc(st.message)}</p><div class="mt-3">${btn('Réessayer')}</div>`;
@@ -340,11 +473,12 @@
   const renderIdent = () => { const el = $('#ident'); if (el) el.innerHTML = identBlock(); };
 
   async function identify() {
-    const f = state.form; if (!f?.blob) return;
+    const f = state.form; if (!f?.main) return;
     if (!navigator.onLine) { f.ident = { status: 'error', message: 'Hors connexion : l’identification a besoin du réseau. Saisissez le nom vous-même.' }; return renderIdent(); }
     f.ident = { status: 'loading' }; renderIdent();
-    const fd = new FormData(); fd.append('photo', f.blob, 'plante.' + ext(f.blob));
     try {
+      const light = await lightBlob(f.main);
+      const fd = new FormData(); fd.append('photo', light, 'plante.' + ext(light));
       const out = await upload('/ia/identifier', fd, () => {});
       f.ident = { status: 'done', suggestions: out.suggestions || [], remarque: out.remarque || '' };
     } catch (e) {
@@ -363,13 +497,13 @@
   const extraSlots = () => 4 - state.form.gallery.length - state.form.extras.length;
   function extrasBlock() {
     const f = state.form, slots = extraSlots();
-    const thumb = (url, rm) => `<div class="relative aspect-square rounded-2xl overflow-hidden bg-leaf-50 border-2 border-leaf-100"><img src="${esc(url)}" alt="" class="w-full h-full object-cover">
+    const thumb = (url, rm, crop = null) => `<div class="relative aspect-square rounded-2xl overflow-hidden bg-leaf-50 border-2 border-leaf-100">${crop !== null ? `<button type="button" data-crop="${crop}" aria-label="Recadrer cette photo" class="block w-full h-full"><img src="${esc(url)}" alt="" class="w-full h-full object-cover"></button><span class="pointer-events-none absolute bottom-1 left-1 rounded-full bg-white/95 text-leaf-900 px-2 py-0.5 text-sm font-bold">Recadrer</span>` : `<img src="${esc(url)}" alt="" class="w-full h-full object-cover">`}
       <button type="button" data-rm="${rm}" aria-label="Retirer cette photo" class="absolute top-1 right-1 w-11 h-11 rounded-full bg-white/95 text-leaf-900 font-extrabold text-xl shadow">✕</button></div>`;
     const tile = 'flex flex-col items-center justify-center gap-1 aspect-square rounded-2xl border-4 border-dashed border-leaf-600 bg-white text-leaf-700 font-display font-bold text-center cursor-pointer active:bg-leaf-100';
     const inputs = `<input id="xcam" type="file" accept="image/*" capture="environment" class="sr-only"><input id="xgal" type="file" accept="image/*" multiple class="sr-only">`;
     if (f.xbusy) return `<p role="status" class="rounded-2xl bg-white border-2 border-leaf-100 px-4 py-6 text-center font-display font-bold text-xl">Préparation des photos…</p>${inputs}`;
     return `<div class="grid grid-cols-3 gap-3">
-      ${f.gallery.map((g) => thumb(g.url, 'gal:' + g.id)).join('')}${f.extras.map((x, i) => thumb(x.url, 'new:' + i)).join('')}
+      ${f.gallery.map((g) => thumb(g.url, 'gal:' + g.id)).join('')}${f.extras.map((x, i) => thumb(shown(x), 'new:' + i, i)).join('')}
       ${slots > 0 ? `<label for="xcam" class="${tile}">${ICON.camera('w-8 h-8')}<span class="text-base">Photo</span></label><label for="xgal" class="${tile}"><span class="text-base">Galerie</span></label>` : ''}
     </div>${inputs}`;
   }
@@ -384,10 +518,10 @@
       state.form = {
         id: id || null, titre: e?.titre || '', nom_local: e?.nom_local || '', categorie: e?.categorie || '', prix: e?.prix ? String(e.prix) : '', conditionnement: e?.conditionnement || '',
         disponible: e ? e.disponible : true, description: e?.description || '', conseils: e?.conseils || '', statut: e?.statut || 'draft',
-        photoUrl: q?.blob ? '' : (e?.photo || ''), blob: q?.blob || null, previewUrl: q?.blob ? URL.createObjectURL(q.blob) : '', busy: false,
+        photoUrl: q?.blob ? '' : (e?.photo || ''), main: q?.blob ? mkPhoto(q.blob, q.blob) : null, busy: false,
         // photos supplémentaires : déjà en ligne (gallery, moins celles à retirer), nouvelles (extras) et à retirer (removed)
         removed: q?.retirer ? [...q.retirer] : [],
-        extras: (q?.extras || []).map((b) => ({ blob: b, url: URL.createObjectURL(b) })), xbusy: false, ident: null,
+        extras: (q?.extras || []).map((b) => mkPhoto(b, b)), xbusy: false, ident: null,
       };
       state.form.gallery = (e?.galerie || []).filter((g) => !state.form.removed.includes(g.id));
     }
@@ -472,36 +606,30 @@
     form.addEventListener('change', async (e) => {
       if (e.target.id !== 'cam' && e.target.id !== 'gal') return;
       const file = e.target.files?.[0]; if (!file) return;
-      f.busy = true; $('#photo').innerHTML = photoBlock();
-      try {
-        const blob = await compress(file);
-        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-        f.blob = blob; f.previewUrl = URL.createObjectURL(blob); f.ident = null;
-      } catch { fail('Cette photo n’a pas pu être lue. Essayez-en une autre.'); }
-      f.busy = false; $('#photo').innerHTML = photoBlock(); renderIdent();
+      // la photo est gardée telle quelle : recadrage possible, traitement automatique à la publication
+      dropPhoto(f.main); f.main = mkPhoto(file); f.ident = null;
+      $('#photo').innerHTML = photoBlock(); renderIdent();
       // comme Google Lens : une nouvelle photo et pas encore de nom → l'assistant propose des noms tout seul
-      if (f.blob && state.config?.ia && navigator.onLine && !f.titre.trim() && !f.id) identify();
+      if (state.config?.ia && navigator.onLine && !f.titre.trim() && !f.id) identify();
     });
     // Photos supplémentaires (une à la fois avec l'appareil, plusieurs d'un coup depuis la galerie), 4 au maximum
     form.addEventListener('change', async (e) => {
       if (e.target.id !== 'xcam' && e.target.id !== 'xgal') return;
       const files = [...(e.target.files || [])].slice(0, Math.max(0, extraSlots())); if (!files.length) return;
-      f.xbusy = true; renderExtras();
-      for (const file of files) {
-        try { const blob = await compress(file); f.extras.push({ blob, url: URL.createObjectURL(blob) }); }
-        catch { toast('Une photo n’a pas pu être lue.', 'err'); }
-      }
-      f.xbusy = false; renderExtras();
+      for (const file of files) f.extras.push(mkPhoto(file));
+      renderExtras();
     });
     form.addEventListener('click', (e) => {
       const rm = e.target.closest('[data-rm]')?.dataset.rm;
       if (rm) {
         const [kind, v] = rm.split(':');
         if (kind === 'gal') { f.removed.push(Number(v)); f.gallery = f.gallery.filter((g) => g.id !== Number(v)); }
-        else { const [x] = f.extras.splice(Number(v), 1); if (x) URL.revokeObjectURL(x.url); }
+        else { const [x] = f.extras.splice(Number(v), 1); dropPhoto(x); }
         renderExtras();
       }
       if (e.target.closest('[data-act="identify"]')) identify();
+      if (e.target.closest('[data-act="crop"]') && f.main) cropPhoto(f.main);
+      const cr = e.target.closest('[data-crop]'); if (cr && f.extras[Number(cr.dataset.crop)]) cropPhoto(f.extras[Number(cr.dataset.crop)]);
       const pick = e.target.closest('[data-pick]'); if (pick) pickSuggestion(Number(pick.dataset.pick));
     });
     $('#ia')?.addEventListener('click', describe);
@@ -524,18 +652,25 @@
     const f = state.form; $('#err').classList.add('hidden');
     if (f.titre.trim().length < 2) return fail('Indiquez le nom de la plante.', 'f-titre');
     if (!f.categorie) return fail('Choisissez une catégorie.', 'f-categorie');
-    if (statut === 'publish' && !f.blob && !f.photoUrl) return fail('Ajoutez une photo avant de publier.', 'f-photo');
+    if (statut === 'publish' && !f.main && !f.photoUrl) return fail('Ajoutez une photo avant de publier.', 'f-photo');
     const fields = {
       titre: f.titre.trim(), nom_local: f.nom_local.trim(), categorie: f.categorie, prix: f.prix || '0', conditionnement: f.conditionnement,
       disponible: f.disponible ? '1' : '0', description: f.description.trim(), conseils: f.conseils.trim(), statut,
     };
+    // Traitement automatique des photos au clic : recadrage, 1600 px, WebP, sans métadonnées. Fait une seule fois par photo.
+    let mainBlob = null; const extraBlobs = [];
+    busy(true, 0, 'Préparation des photos…');
+    try {
+      if (f.main) mainBlob = await finalBlob(f.main);
+      for (const x of f.extras) extraBlobs.push(await finalBlob(x));
+    } catch { busy(false); return fail('Une photo n’a pas pu être préparée. Essayez de la reprendre.'); }
     const isLocal = typeof f.id === 'string';
     const key = isLocal ? f.id : f.id ? 'u-' + f.id : 'c-' + uid();
     const entry = {
       key, type: isLocal || !f.id ? 'create' : 'update', plantId: isLocal || !f.id ? undefined : f.id,
-      fields, blob: f.blob || null, extras: f.extras.map((x) => x.blob), retirer: f.removed, user: state.me.id, createdAt: state.queue.find((q) => q.key === key)?.createdAt || Date.now(),
+      fields, blob: mainBlob, extras: extraBlobs, retirer: f.removed, user: state.me.id, createdAt: state.queue.find((q) => q.key === key)?.createdAt || Date.now(),
     };
-    const done = (msg) => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); f.done = true; toast(msg); location.hash = '#/'; };
+    const done = (msg) => { dropPhoto(f.main); f.extras.forEach(dropPhoto); f.done = true; toast(msg); location.hash = '#/'; };
 
     if (navigator.onLine) {
       busy(true, 0);
@@ -551,7 +686,7 @@
         // réseau coupé en cours d'envoi : on garde l'enregistrement sur le téléphone
       }
     }
-    try { await enqueue(entry); } catch (e) { return fail(e.message); }
+    try { await enqueue(entry); } catch (e) { busy(false); return fail(e.message); }
     done(statut === 'publish' ? 'Enregistré sur le téléphone. La plante sera publiée dès que le réseau revient.' : 'Brouillon gardé sur le téléphone. Il partira dès que le réseau revient.');
   }
 
@@ -564,13 +699,13 @@
     const replacing = f.description.trim().length > 0;
     if (replacing && !confirm('Remplacer votre description par la proposition de l’assistant ?')) return;
     btn.disabled = true; label.textContent = 'L’assistant rédige…';
-    note.textContent = f.blob ? 'Il regarde votre photo.' : 'Sans photo, la description sera plus générale.';
+    note.textContent = f.main ? 'Il regarde votre photo.' : 'Sans photo, la description sera plus générale.';
     const fd = new FormData();
     fd.append('titre', f.titre.trim());
     const cat = state.config.univers.find((u) => u.slug === f.categorie), unit = state.config.conditionnements.find((u) => u.valeur === f.conditionnement);
     if (cat) fd.append('categorie_label', cat.label);
     if (unit) fd.append('conditionnement_label', unit.label);
-    if (f.blob) fd.append('photo', f.blob, 'plante.' + (f.blob.type === 'image/webp' ? 'webp' : 'jpg'));
+    if (f.main) { try { const light = await lightBlob(f.main); fd.append('photo', light, 'plante.' + ext(light)); } catch {} }
     try {
       const out = await upload('/ia/description', fd, () => {});
       f.description = out.description; $('#f-desc').value = out.description;
