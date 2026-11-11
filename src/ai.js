@@ -1,18 +1,28 @@
 // Assistant de description : à partir de la photo et du nom, propose un texte de fiche et des conseils d'entretien.
 // L'agriculteur relit et corrige toujours avant de publier : c'est un brouillon, pas une vérité.
+//
+// Fournisseurs (au choix, selon les clés définies ; AI_PROVIDER force l'un des deux) :
+//  - gemini    : GRATUIT (clé de Google AI Studio, sans carte bancaire), modèles « flash-lite » par défaut
+//  - anthropic : Claude, payant (ANTHROPIC_API_KEY)
 import Anthropic from '@anthropic-ai/sdk';
-
-// Opus 5.5 par défaut : la reconnaissance d'une plante sur photo est le point délicat. Pour réduire le coût,
-// ANTHROPIC_MODEL=claude-haiku-5-5 convient à des descriptions plus simples.
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
-const FALLBACKS = /^claude-(opus-5-5|sonnet-5-5|fable-5)/.test(MODEL); // reprise automatique par un autre modèle en cas de refus
+import { GoogleGenAI, ApiError } from '@google/genai';
 
 export class AiError extends Error {
   constructor(status, message, code) { super(message); this.status = status; this.code = code; this.expose = true; }
 }
 
-export const aiEnabled = () => Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+const geminiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+const claudeKey = () => process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
 
+function provider() {
+  const forced = (process.env.AI_PROVIDER || '').toLowerCase();
+  if (forced === 'gemini') return geminiKey() ? 'gemini' : null;
+  if (forced === 'anthropic') return claudeKey() ? 'anthropic' : null;
+  return geminiKey() ? 'gemini' : claudeKey() ? 'anthropic' : null; // le gratuit passe en premier
+}
+export const aiEnabled = () => provider() !== null;
+
+/* ---------------- Consigne et format communs ---------------- */
 const SYSTEM = `Tu aides des agriculteurs et pépiniéristes du Sénégal à présenter leurs plantes sur la boutique en ligne Mbayoumkeur (plants, arbres fruitiers, herbes aromatiques, légumes, fleurs).
 Ils saisissent leurs fiches depuis le terrain, sur un téléphone : sois clair, simple et concret.
 
@@ -36,39 +46,88 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-let client;
+const userText = ({ image, titre, categorie, conditionnement }) =>
+  `Nom donné par l'agriculteur : « ${titre} »\nCatégorie : ${categorie || 'non précisée'}\nConditionnement : ${conditionnement || 'non précisé'}\n${image ? 'Une photo est jointe.' : 'Pas de photo : décris la plante d’après son nom seulement, et dis-le dans la remarque.'}`;
+
 const clip = (s, n) => String(s || '').replace(/\r/g, '').trim().slice(0, n);
+const REFUS = () => new AiError(422, 'L’assistant n’a pas pu décrire cette photo. Rédigez la description vous-même.', 'ia_refus');
+const OCCUPE = () => new AiError(429, 'L’assistant est très sollicité. Réessayez dans une minute.', 'ia_occupe');
+const RESEAU = () => new AiError(502, 'L’assistant ne répond pas. Réessayez dans un instant.', 'ia_reseau');
+const ERREUR = () => new AiError(502, 'L’assistant n’a pas pu répondre. Rédigez la description vous-même ou réessayez.', 'ia_erreur');
 
-export async function describePlant({ image, mime, titre, categorie, conditionnement }) {
-  if (!aiEnabled()) throw new AiError(503, 'L’assistant n’est pas disponible pour le moment. Rédigez la description vous-même.', 'ia_indisponible');
-  client ??= new Anthropic({ maxRetries: 1, timeout: 60000 });
+/* ---------------- Gemini (gratuit) ---------------- */
+// Plusieurs modèles « flash-lite » : le quota gratuit est compté par modèle, on passe au suivant s'il est épuisé.
+// Les limites exactes s'affichent dans Google AI Studio ; GEMINI_MODELS permet d'en changer (ex. gemini-3.6-flash).
+const GEMINI_MODELS = (process.env.GEMINI_MODELS || 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite').split(',').map((m) => m.trim()).filter(Boolean);
+let gem;
 
+async function viaGemini(input) {
+  gem ??= new GoogleGenAI({ apiKey: geminiKey(), httpOptions: { apiVersion: 'v1beta', ...(process.env.GEMINI_BASE_URL ? { baseUrl: process.env.GEMINI_BASE_URL } : {}) } });
+  const parts = [];
+  if (input.image) parts.push({ inlineData: { mimeType: input.mime, data: input.image.toString('base64') } });
+  parts.push({ text: userText(input) });
+
+  let last;
+  for (const model of GEMINI_MODELS) {
+    try {
+      const res = await gem.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts }],
+        config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', responseJsonSchema: SCHEMA, maxOutputTokens: 2000 },
+      });
+      if (res.promptFeedback?.blockReason) throw REFUS();
+      const text = res.text;
+      if (!text) { const fr = res.candidates?.[0]?.finishReason; if (fr && fr !== 'STOP') throw REFUS(); throw ERREUR(); }
+      return text;
+    } catch (err) {
+      if (err instanceof AiError) throw err;
+      // quota épuisé, modèle indisponible ou inconnu : on essaie le modèle suivant
+      if (err instanceof ApiError && (err.status === 429 || err.status === 404 || err.status >= 500)) { last = err; continue; }
+      throw err;
+    }
+  }
+  throw last;
+}
+
+/* ---------------- Claude (payant, facultatif) ---------------- */
+const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
+const CLAUDE_FALLBACKS = /^claude-(opus-5-5|sonnet-5-5|fable-5)/.test(CLAUDE_MODEL); // reprise automatique en cas de refus
+let claude;
+
+async function viaClaude(input) {
+  claude ??= new Anthropic({ maxRetries: 1, timeout: 60000 });
   const content = [];
-  if (image) content.push({ type: 'image', source: { type: 'base64', media_type: mime, data: image.toString('base64') } });
-  content.push({
-    type: 'text',
-    text: `Nom donné par l'agriculteur : « ${titre} »\nCatégorie : ${categorie || 'non précisée'}\nConditionnement : ${conditionnement || 'non précisé'}\n${image ? 'Une photo est jointe.' : 'Pas de photo : décris la plante d’après son nom seulement, et dis-le dans la remarque.'}`,
+  if (input.image) content.push({ type: 'image', source: { type: 'base64', media_type: input.mime, data: input.image.toString('base64') } });
+  content.push({ type: 'text', text: userText(input) });
+  const res = await claude.beta.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 4000,
+    ...(CLAUDE_FALLBACKS ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {}),
+    system: SYSTEM,
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
+    messages: [{ role: 'user', content }],
   });
+  if (res.stop_reason === 'refusal') throw REFUS();
+  return res.content.find((b) => b.type === 'text')?.text;
+}
 
-  let res;
+/* ---------------- Point d'entrée ---------------- */
+export async function describePlant(input) {
+  const which = provider();
+  if (!which) throw new AiError(503, 'L’assistant n’est pas disponible pour le moment. Rédigez la description vous-même.', 'ia_indisponible');
+
+  let text;
   try {
-    res = await client.beta.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      ...(FALLBACKS ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {}),
-      system: SYSTEM,
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-      messages: [{ role: 'user', content }],
-    });
+    text = await (which === 'gemini' ? viaGemini(input) : viaClaude(input));
   } catch (err) {
-    if (err instanceof Anthropic.RateLimitError) throw new AiError(429, 'L’assistant est très sollicité. Réessayez dans une minute.', 'ia_occupe');
-    if (err instanceof Anthropic.APIConnectionError) throw new AiError(502, 'L’assistant ne répond pas. Réessayez dans un instant.', 'ia_reseau');
-    console.error('Assistant IA :', err instanceof Anthropic.APIError ? `${err.status} ${err.message}` : err);
-    throw new AiError(502, 'L’assistant n’a pas pu répondre. Rédigez la description vous-même ou réessayez.', 'ia_erreur');
+    if (err instanceof AiError) throw err;
+    const status = err?.status;
+    if (status === 429 || err instanceof Anthropic.RateLimitError) throw OCCUPE();
+    if (err instanceof Anthropic.APIConnectionError || (!status && /fetch failed|ECONN|ENOTFOUND|timeout/i.test(String(err?.message)))) throw RESEAU();
+    console.error('Assistant IA (' + which + ') :', status ? `${status} ${err.message}` : err);
+    throw ERREUR();
   }
 
-  if (res.stop_reason === 'refusal') throw new AiError(422, 'L’assistant n’a pas pu décrire cette photo. Rédigez la description vous-même.', 'ia_refus');
-  const text = res.content.find((b) => b.type === 'text')?.text;
   let out;
   try { out = JSON.parse(text); } catch { out = null; }
   if (!out || typeof out.description !== 'string') throw new AiError(502, 'La proposition est illisible. Réessayez.', 'ia_format');
