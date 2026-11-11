@@ -8,6 +8,36 @@
   // server : plantes connues du serveur ; queue : enregistrements en attente d'envoi ; plantes : ce que l'écran affiche (les deux fusionnés)
   const state = { me: null, config: null, server: [], queue: [], plantes: [], filter: 'tout', form: null, view: '', offline: false, snapAt: 0 };
 
+  /* ----- Photos en ligne visibles hors connexion ----- */
+  // Les photos sont sur un autre domaine : le navigateur ne peut pas les garder lui-même de façon fiable. Après chaque actualisation de la
+  // liste, l'application les télécharge une fois via le relais du serveur (même domaine), le service worker les garde (cache « mbk-photos »)
+  // et une image qui ne charge pas (hors connexion) est relue depuis cette copie.
+  const relay = (u) => '/agriculteur/api/photo?u=' + encodeURIComponent(u);
+  window.mbkImgFb = (i) => {
+    if (i.dataset.u && !i.dataset.r) { i.dataset.r = '1'; i.src = relay(i.dataset.u); }
+    else if (i.dataset.fb) i.outerHTML = i.dataset.fb;
+  };
+  const remoteImg = (url, cls, alt = '', fb = '', lazy = false) => `<img src="${esc(url)}" data-u="${esc(url)}" data-fb="${esc(fb)}" alt="${esc(alt)}"${lazy ? ' loading="lazy"' : ''} onerror="mbkImgFb(this)" class="${cls}">`;
+  let caching = false;
+  async function cachePhotos(list) {
+    if (caching || !('caches' in window) || !navigator.onLine) return;
+    caching = true;
+    try {
+      const c = await caches.open('mbk-photos');
+      const want = [...new Set(list.flatMap((p) => [p.photo, ...(p.galerie || []).map((g) => g.url)]).filter(Boolean))].slice(0, 400);
+      const keep = new Set(want.map(relay));
+      for (const r of await c.keys()) { const k = new URL(r.url); if (!keep.has(k.pathname + k.search)) await c.delete(r); } // photos retirées ou remplacées
+      const todo = [];
+      for (const u of want) if (!(await c.match(relay(u)))) todo.push(u);
+      let i = 0;
+      await Promise.all([0, 1, 2].map(async () => {
+        while (i < todo.length && navigator.onLine) {
+          const u = todo[i++];
+          try { const res = await fetch(relay(u), { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } }); if (res.ok) await c.put(relay(u), res); } catch {}
+        }
+      }));
+    } catch {} finally { caching = false; }
+  }
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fcfa = (n) => new Intl.NumberFormat('fr-FR').format(n);
   const plural = (n, a, b) => (n > 1 ? b : a);
@@ -162,7 +192,7 @@
     rebuild(); refreshView();
   }
   async function refreshServer() {
-    try { const { plantes } = await api('/plantes'); state.server = plantes; state.offline = false; cPut({ me: state.me, config: state.config, plantes }).catch(() => {}); rebuild(); } catch {}
+    try { const { plantes } = await api('/plantes'); state.server = plantes; state.offline = false; cPut({ me: state.me, config: state.config, plantes }).catch(() => {}); rebuild(); cachePhotos(plantes); } catch {}
   }
   const refreshView = () => { if (state.view === 'home') viewHome(); };
 
@@ -423,11 +453,11 @@
     const chip = p.local ? ['border-2 border-dashed border-leaf-600 bg-white', 'En attente d’envoi']
       : p.pending ? ['border-2 border-dashed border-leaf-600 bg-white', 'Modification en attente']
         : online ? ['bg-leaf-100', 'En ligne'] : ['bg-sun-soft', 'Brouillon'];
-    const fallback = `<span aria-hidden=&quot;true&quot;>${icon(p.categorie)}</span>`;
+    const fallback = `<span aria-hidden="true">${icon(p.categorie)}</span>`;
     return `
     <li class="bg-white rounded-3xl border-2 ${p.erreur ? 'border-carrot' : 'border-leaf-100'} p-3 flex gap-3 items-stretch">
       <a href="#/plante/${p.id}" class="shrink-0 w-20 h-20 rounded-2xl overflow-hidden bg-leaf-50 flex items-center justify-center text-4xl" aria-label="Modifier ${esc(p.titre)}">
-        ${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" onerror="this.outerHTML='${fallback}'" class="w-full h-full object-cover ${p.disponible ? '' : 'opacity-50 grayscale'}">` : `<span aria-hidden="true">${icon(p.categorie)}</span>`}
+        ${p.photo ? remoteImg(p.photo, 'w-full h-full object-cover ' + (p.disponible ? '' : 'opacity-50 grayscale'), '', fallback, true) : `<span aria-hidden="true">${icon(p.categorie)}</span>`}
       </a>
       <div class="flex-1 min-w-0 flex flex-col justify-between">
         <div>
@@ -501,7 +531,7 @@
       <label for="cam" id="f-photo" tabindex="-1" class="flex flex-col items-center justify-center gap-3 min-h-56 rounded-3xl border-4 border-dashed border-leaf-600 bg-white text-leaf-700 font-display font-extrabold text-2xl text-center p-6 cursor-pointer active:bg-leaf-100">${ICON.camera('w-16 h-16')}Prendre une photo</label>
       <p class="mt-3 text-center"><label for="gal" class="inline-flex items-center min-h-12 px-3 underline underline-offset-4 font-semibold cursor-pointer">Ou choisir dans la galerie</label></p>${inputs}`;
     return `
-      <div class="relative rounded-3xl overflow-hidden bg-leaf-50 aspect-[4/3] border-2 border-leaf-100"><img src="${esc(src)}" alt="Photo de la plante" class="w-full h-full object-contain"></div>
+      <div class="relative rounded-3xl overflow-hidden bg-leaf-50 aspect-[4/3] border-2 border-leaf-100">${remoteImg(src, 'w-full h-full object-contain', 'Photo de la plante')}</div>
       ${f.main ? `<p class="mt-2 text-slate-700">${f.main.crop ? (hasAdj(f.main.crop.adj) ? 'Photo retouchée. ' : 'Photo recadrée. ') : ''}Elle est préparée automatiquement quand vous publiez.</p>` : ''}
       <div class="mt-3 grid grid-cols-3 gap-3">${f.main ? `<button type="button" data-act="crop" class="${btn}">${ICON.crop}Retoucher</button>` : `<button type="button" data-act="edit-main" class="${btn}">${ICON.crop}Retoucher</button>`}<label for="cam" class="${btn}">${ICON.camera('w-6 h-6')}Reprendre</label><label for="gal" class="${btn}">Galerie</label></div>${inputs}`;
   }
@@ -591,7 +621,7 @@
   const extraSlots = () => 4 - state.form.gallery.length - state.form.extras.length;
   function extrasBlock() {
     const f = state.form, slots = extraSlots();
-    const thumb = (url, rm, crop = null, gal = null) => `<div class="relative aspect-square rounded-2xl overflow-hidden bg-leaf-50 border-2 border-leaf-100">${crop !== null || gal !== null ? `<button type="button" ${crop !== null ? `data-crop="${crop}"` : `data-editgal="${gal}"`} aria-label="Retoucher cette photo" class="block w-full h-full"><img src="${esc(url)}" alt="" class="w-full h-full object-cover"></button><span class="pointer-events-none absolute bottom-1 left-1 rounded-full bg-white/95 text-leaf-900 px-2 py-0.5 text-sm font-bold">Retoucher</span>` : `<img src="${esc(url)}" alt="" class="w-full h-full object-cover">`}
+    const thumb = (url, rm, crop = null, gal = null) => `<div class="relative aspect-square rounded-2xl overflow-hidden bg-leaf-50 border-2 border-leaf-100">${crop !== null || gal !== null ? `<button type="button" ${crop !== null ? `data-crop="${crop}"` : `data-editgal="${gal}"`} aria-label="Retoucher cette photo" class="block w-full h-full">${remoteImg(url, 'w-full h-full object-cover')}</button><span class="pointer-events-none absolute bottom-1 left-1 rounded-full bg-white/95 text-leaf-900 px-2 py-0.5 text-sm font-bold">Retoucher</span>` : remoteImg(url, 'w-full h-full object-cover')}
       <button type="button" data-rm="${rm}" aria-label="Retirer cette photo" class="absolute top-1 right-1 w-11 h-11 rounded-full bg-white/95 text-leaf-900 font-extrabold text-xl shadow">✕</button></div>`;
     const tile = 'flex flex-col items-center justify-center gap-1 aspect-square rounded-2xl border-4 border-dashed border-leaf-600 bg-white text-leaf-700 font-display font-bold text-center cursor-pointer active:bg-leaf-100';
     const inputs = `<input id="xcam" type="file" accept="image/*" capture="environment" class="sr-only"><input id="xgal" type="file" accept="image/*" multiple class="sr-only">`;
@@ -890,7 +920,8 @@
     const n = state.queue.length;
     if (n && !confirm(`${n} ${plural(n, 'enregistrement attend', 'enregistrements attendent')} d’être envoyé. ${plural(n, 'Il restera', 'Ils resteront')} sur ce téléphone jusqu’à votre prochaine connexion. Quitter quand même ?`)) return;
     try { await api('/logout', { method: 'POST' }); } catch {}
-    try { await cDel(); } catch {}   // la liste mémorisée ne doit pas rester lisible une fois déconnecté
+    try { await cDel(); } catch {}
+    try { await caches.delete('mbk-photos'); } catch {}   // la liste mémorisée ne doit pas rester lisible une fois déconnecté
     state.me = null; state.server = []; state.queue = []; state.plantes = []; state.form = null; location.hash = ''; viewLogin();
   }
   function sessionLost() { state.me = null; viewLogin('Votre session a expiré. Reconnectez-vous : vos enregistrements en attente sont gardés.'); }
@@ -935,6 +966,7 @@
     }
     state.queue = hasIDB ? (await qAll().catch(() => [])).filter((q) => q.user === state.me.id) : [];
     rebuild(); route(); flush();
+    if (!state.offline) cachePhotos(state.server);
   }
 
   window.addEventListener('hashchange', route);
