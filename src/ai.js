@@ -56,9 +56,11 @@ const RESEAU = () => new AiError(502, 'L’assistant ne répond pas. Réessayez 
 const ERREUR = () => new AiError(502, 'L’assistant n’a pas pu répondre. Rédigez la description vous-même ou réessayez.', 'ia_erreur');
 
 /* ---------------- Gemini (gratuit) ---------------- */
-// Plusieurs modèles « flash-lite » : le quota gratuit est compté par modèle, on passe au suivant s'il est épuisé.
+// Plusieurs modèles : le quota gratuit est compté par modèle, on passe au suivant s'il est épuisé ou en forte demande.
+// Ordre mesuré sur de vraies photos : 3.1-flash-lite répond en 2-3 s, 3.5-flash-lite en 8 s ou plus, 3.6-flash en 8-12 s
+// (gemini-2.5-flash-lite est refusé aux nouveaux comptes).
 // Les limites exactes s'affichent dans Google AI Studio ; GEMINI_MODELS permet d'en changer (ex. gemini-3.6-flash).
-const GEMINI_MODELS = (process.env.GEMINI_MODELS || 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite').split(',').map((m) => m.trim()).filter(Boolean);
+const GEMINI_MODELS = (process.env.GEMINI_MODELS || 'gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-3.6-flash').split(',').map((m) => m.trim()).filter(Boolean);
 let gem;
 
 async function viaGemini(input) {
