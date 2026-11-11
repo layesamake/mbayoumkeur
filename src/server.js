@@ -21,6 +21,7 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(root, 'src/views'));
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+app.use('/fonts', express.static(path.join(root, 'public', 'fonts'), { maxAge: '30d', immutable: true, redirect: false })); // polices embarquées : rarement modifiées
 app.use(express.static(path.join(root, 'public'), { maxAge: '5m', redirect: false }));
 // Espace agriculteur : avant le chargement du catalogue (il n'en a pas besoin)
 app.use('/agriculteur', farmerRouter());

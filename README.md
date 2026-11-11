@@ -69,6 +69,10 @@ Application installable (PWA) sur `/agriculteur` : l'agriculteur se connecte ave
 - **Photos visibles hors connexion** : à chaque actualisation de la liste (réseau présent), l'application télécharge les miniatures des plantes (principale et galerie, 400 au plus) par le relais `/agriculteur/api/photo` (même domaine) et le service worker les garde dans le cache `mbk-photos` (cache d'abord, la photo d'une adresse ne change jamais). Une image qui ne charge pas est relue depuis cette copie, puis, à défaut, remplacée par l'icône. Les copies des photos retirées ou remplacées sont supprimées à l'actualisation suivante, et tout le cache à la déconnexion. Environ 20 à 40 Ko par photo.
 - **Accès** : lien « Espace agriculteurs » dans le pied de page du site, et adresses courtes ``/agriculteurs`` et ``/producteurs`` (redirigent vers ``/agriculteur``), faciles à dicter ou à envoyer par WhatsApp.
 - **Installation sur le téléphone** : ouvrir `/agriculteur` dans Chrome puis « Ajouter à l'écran d'accueil ».
+## 1 quater. Polices de caractères
+
+Les polices sont **embarquées** dans `public/fonts/` (aucune requête vers Google : plus rapide, et les visiteurs ne sont pas exposés à un tiers). Site public : titres en **Fraunces** (serif douce, `font-display`), texte en **Source Sans 3**. Espace agriculteur : titres en **Baloo 2** (lettres rondes, très lisibles en plein soleil ; surcharge de `.font-display` dans `farmer.ejs`). Les `@font-face` sont dans `src/input.css` ; seuls les extraits « latin » (français) sont chargés d'office, les extraits « latin-ext » (lettres du wolof comme ŋ) ne le sont que si un de ces caractères apparaît. Les polices de l'espace agriculteur sont gardées par le service worker pour l'usage hors connexion. Licence SIL OFL 1.1 (`public/fonts/LICENSE.txt`). Pour changer de police : remplacer les fichiers, ajuster `src/input.css` et `tailwind.config.cjs`, puis `npm run build`.
+
 ## 2. Lancer en local
 
 ```bash
