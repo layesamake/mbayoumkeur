@@ -79,5 +79,13 @@
     ['cust-name', 'cust-addr'].forEach((id) => $(id).addEventListener('input', render));
     render();
   }
+  // Fiche produit : une miniature remplace la grande photo
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-thumb]'); if (!t) return;
+    const main = document.getElementById('gallery-main'); if (!main) return;
+    main.src = t.dataset.src;
+    if (t.dataset.srcset) main.srcset = t.dataset.srcset; else main.removeAttribute('srcset');
+    document.querySelectorAll('[data-thumb]').forEach((b) => b.setAttribute('aria-pressed', String(b === t)));
+  });
   badge();
 })();

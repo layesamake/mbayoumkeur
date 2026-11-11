@@ -4,7 +4,7 @@
 import express from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
-import { describePlant, aiEnabled } from './ai.js';
+import { describePlant, identifyPlant, aiEnabled } from './ai.js';
 
 const WP_URL = (process.env.WP_URL || 'https://cms.mbayoumkeur.shop').replace(/\/$/, '');
 const COOKIE = 'mbk_agri';
@@ -73,25 +73,37 @@ const tooMany = (ip) => {
   return list.length >= 12;
 };
 
-// Assistant : 6 demandes par minute et 30 par jour et par agriculteur (chaque demande coûte un appel au modèle)
+// Assistant : 6 demandes par minute (tous types confondus), 30 descriptions et 40 identifications par jour et par agriculteur
+// (chaque demande coûte un appel au modèle)
 const aiUse = new Map();
-const aiLimit = (id) => {
+const AI_DAY = { description: 30, identification: 40 };
+const aiLimit = (id, kind = 'description') => {
   const now = Date.now();
-  const list = (aiUse.get(id) || []).filter((t) => now - t < 24 * 3600 * 1000);
-  if (list.filter((t) => now - t < 60 * 1000).length >= 6) throw new HttpError(429, 'Doucement : réessayez dans une minute.', 'ia_occupe');
-  if (list.length >= 30) throw new HttpError(429, 'Vous avez atteint la limite de descriptions pour aujourd’hui. Rédigez celle-ci vous-même.', 'ia_limite');
-  list.push(now); aiUse.set(id, list);
+  const all = (aiUse.get(id) || []).filter((t) => now - t.at < 24 * 3600 * 1000);
+  if (all.filter((t) => now - t.at < 60 * 1000).length >= 6) throw new HttpError(429, 'Doucement : réessayez dans une minute.', 'ia_occupe');
+  if (all.filter((t) => t.kind === kind).length >= AI_DAY[kind]) {
+    throw new HttpError(429, kind === 'identification' ? 'Vous avez atteint la limite d’identifications pour aujourd’hui. Saisissez le nom vous-même.' : 'Vous avez atteint la limite de descriptions pour aujourd’hui. Rédigez celle-ci vous-même.', 'ia_limite');
+  }
+  all.push({ at: now, kind }); aiUse.set(id, all);
 };
 
 // « cle » : identifiant unique d'un envoi (création), pour qu'un renvoi après coupure réseau ne crée jamais de doublon
-const FIELDS = ['titre', 'categorie', 'prix', 'conditionnement', 'disponible', 'description', 'conseils', 'statut', 'cle'];
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 }, fileFilter: (req, file, cb) => (/^image\/(jpeg|png|webp)$/.test(file.mimetype) ? cb(null, true) : cb(new HttpError(415, 'Format de photo non accepté (JPEG, PNG ou WebP).', 'photo'))) });
+// « retirer » : identifiants des photos supplémentaires à supprimer (séparés par des virgules)
+const FIELDS = ['titre', 'nom_local', 'categorie', 'prix', 'conditionnement', 'disponible', 'description', 'conseils', 'statut', 'cle', 'retirer'];
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 5 }, fileFilter: (req, file, cb) => (/^image\/(jpeg|png|webp)$/.test(file.mimetype) ? cb(null, true) : cb(new HttpError(415, 'Format de photo non accepté (JPEG, PNG ou WebP).', 'photo'))) });
 
-// Reconstitue le formulaire envoyé à WordPress : champs autorisés + photo
+// Photo principale + 4 photos supplémentaires au maximum (5 photos par plante)
+const PHOTO_FIELDS = ['photo', 'extra_1', 'extra_2', 'extra_3', 'extra_4'];
+const plantPhotos = upload.fields(PHOTO_FIELDS.map((name) => ({ name, maxCount: 1 })));
+
+// Reconstitue le formulaire envoyé à WordPress : champs autorisés + photos
 const toForm = (req) => {
   const form = new FormData();
   for (const k of FIELDS) if (req.body?.[k] !== undefined) form.append(k, String(req.body[k]));
-  if (req.file) form.append('photo', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname || 'plante.webp');
+  for (const k of PHOTO_FIELDS) {
+    const f = req.files?.[k]?.[0];
+    if (f) form.append(k, new Blob([f.buffer], { type: f.mimetype }), f.originalname || 'plante.webp');
+  }
   return form;
 };
 
@@ -143,9 +155,15 @@ export function farmerRouter() {
       categorie: line(req.body?.categorie_label, 60), conditionnement: line(req.body?.conditionnement_label, 30),
     }));
   }));
+  // Identification façon Google Lens : la photo principale → jusqu'à 3 noms possibles (l'agriculteur choisit, rien n'est enregistré)
+  api.post('/ia/identifier', auth, upload.single('photo'), wrap(async (req, res) => {
+    if (!req.file) throw new HttpError(400, 'Prenez d’abord une photo de la plante.', 'champ');
+    aiLimit(req.sess.id, 'identification');
+    res.json(await identifyPlant({ image: req.file.buffer, mime: req.file.mimetype }));
+  }));
   api.get('/plantes', auth, wrap(async (req, res) => res.json(await wp(req.sess, 'GET', '/plantes'))));
-  api.post('/plantes', auth, upload.single('photo'), wrap(async (req, res) => res.status(201).json(await wp(req.sess, 'POST', '/plantes', { form: toForm(req) }))));
-  api.post('/plantes/:id(\\d+)', auth, upload.single('photo'), wrap(async (req, res) => res.json(await wp(req.sess, 'POST', `/plantes/${req.params.id}`, { form: toForm(req) }))));
+  api.post('/plantes', auth, plantPhotos, wrap(async (req, res) => res.status(201).json(await wp(req.sess, 'POST', '/plantes', { form: toForm(req) }))));
+  api.post('/plantes/:id(\\d+)', auth, plantPhotos, wrap(async (req, res) => res.json(await wp(req.sess, 'POST', `/plantes/${req.params.id}`, { form: toForm(req) }))));
   api.post('/plantes/:id(\\d+)/disponibilite', auth, wrap(async (req, res) => {
     res.json(await wp(req.sess, 'POST', `/plantes/${req.params.id}/disponibilite`, { json: { disponible: req.body?.disponible ? '1' : '0' } }));
   }));

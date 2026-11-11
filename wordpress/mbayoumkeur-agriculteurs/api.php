@@ -19,6 +19,8 @@ if (!function_exists('mbk_is_farmer') || !defined('MBK_CPT') || !function_exists
 
 const MBK_API_UNITS = ['pot' => 'Pot', 'plant' => 'Plant', 'alveole' => 'Alvéole', 'sachet' => 'Sachet', 'botte' => 'Botte'];
 const MBK_API_HIDDEN_UNIVERS = ['terreaux', 'accessoires']; // vendus par la boutique, pas produits par les agriculteurs
+const MBK_GAL = 'mbk_galerie';  // photos supplémentaires : liste d'identifiants de médias (5 photos au maximum avec la principale)
+const MBK_GAL_MAX = 4;
 
 /* ------------------------------------------------------------------ */
 /* Outils                                                               */
@@ -49,6 +51,16 @@ function mbk_api_own_plant(int $id) {
   return $p;
 }
 
+/** Photos supplémentaires d'une plante : [['id' => …, 'url' => miniature], …] */
+function mbk_api_gallery_items(int $post_id): array {
+  $out = [];
+  foreach (array_filter(array_map('intval', (array) get_post_meta($post_id, MBK_GAL, true))) as $id) {
+    $url = wp_get_attachment_image_url($id, 'mbk-400') ?: wp_get_attachment_image_url($id, 'medium') ?: (wp_get_attachment_url($id) ?: '');
+    if ($url) $out[] = ['id' => $id, 'url' => $url];
+  }
+  return $out;
+}
+
 function mbk_api_plante(WP_Post $p): array {
   $thumb_id = get_post_thumbnail_id($p);
   $photo = '';
@@ -60,6 +72,7 @@ function mbk_api_plante(WP_Post $p): array {
     'id' => $p->ID,
     'ref' => 'MK-' . str_pad((string) $p->ID, 4, '0', STR_PAD_LEFT),
     'titre' => html_entity_decode(get_the_title($p), ENT_QUOTES, 'UTF-8'),
+    'nom_local' => (string) get_post_meta($p->ID, 'nom_local', true),
     'description' => trim(wp_strip_all_tags($p->post_content)),
     'conseils' => (string) mbk_api_get($p->ID, 'conseils_entretien'),
     'categorie' => (string) mbk_api_get($p->ID, MBK_UNIVERS_META),
@@ -68,6 +81,7 @@ function mbk_api_plante(WP_Post $p): array {
     'disponible' => !($dispo === '0' || $dispo === 0 || $dispo === false),
     'statut' => $p->post_status === 'publish' ? 'publish' : 'draft',
     'photo' => $photo,
+    'galerie' => mbk_api_gallery_items($p->ID),
     'modifie' => get_post_modified_time('c', true, $p),
   ];
 }
@@ -82,6 +96,7 @@ function mbk_api_fields(WP_REST_Request $r, bool $partial = false) {
     if (mb_strlen($t) < 2) return new WP_Error('mbk_champ', 'Indiquez le nom de la plante.', ['status' => 400]);
     $out['titre'] = mb_substr($t, 0, 80);
   }
+  if ($has('nom_local')) $out['nom_local'] = mb_substr(trim(sanitize_text_field((string) $r->get_param('nom_local'))), 0, 80);
   if (!$partial || $has('categorie')) {
     $c = (string) $r->get_param('categorie');
     if (!array_key_exists($c, mbk_api_univers())) return new WP_Error('mbk_champ', 'Choisissez une catégorie.', ['status' => 400]);
@@ -105,6 +120,7 @@ function mbk_api_fields(WP_REST_Request $r, bool $partial = false) {
 }
 
 function mbk_api_apply(int $id, array $f): void {
+  if (array_key_exists('nom_local', $f)) update_post_meta($id, 'nom_local', $f['nom_local']);
   if (array_key_exists('categorie', $f)) mbk_api_set($id, MBK_UNIVERS_META, $f['categorie']);
   if (array_key_exists('prix', $f)) mbk_api_set($id, 'prix_unitaire', $f['prix']);
   if (array_key_exists('conditionnement', $f)) mbk_api_set($id, 'conditionnement', $f['conditionnement']);
@@ -112,17 +128,63 @@ function mbk_api_apply(int $id, array $f): void {
   if (array_key_exists('conseils', $f)) mbk_api_set($id, 'conseils_entretien', $f['conseils']);
 }
 
-/** Enregistre la photo envoyée (champ « photo ») comme image à la une. Le filtre d'optimisation s'applique à l'envoi. */
-function mbk_api_photo(int $post_id) {
-  if (empty($_FILES['photo']) || !empty($_FILES['photo']['error']) && (int) $_FILES['photo']['error'] === UPLOAD_ERR_NO_FILE) return 0;
+/** Enregistre le fichier envoyé sous le champ $key et retourne l'identifiant du média (0 si aucun fichier). Le filtre d'optimisation s'applique à l'envoi. */
+function mbk_api_upload(string $key, int $post_id) {
+  if (empty($_FILES[$key]) || (int) ($_FILES[$key]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return 0;
   require_once ABSPATH . 'wp-admin/includes/file.php';
   require_once ABSPATH . 'wp-admin/includes/media.php';
   require_once ABSPATH . 'wp-admin/includes/image.php';
-  $att = media_handle_upload('photo', $post_id);
+  $att = media_handle_upload($key, $post_id);
   if (is_wp_error($att)) return new WP_Error('mbk_photo', 'La photo n’a pas pu être enregistrée : ' . $att->get_error_message(), ['status' => 400]);
-  set_post_thumbnail($post_id, $att);
   return (int) $att;
 }
+
+/** Photo principale (champ « photo ») : image à la une. */
+function mbk_api_photo(int $post_id) {
+  $att = mbk_api_upload('photo', $post_id);
+  if (is_wp_error($att) || !$att) return $att;
+  set_post_thumbnail($post_id, $att);
+  return $att;
+}
+
+/** Photos supplémentaires : champs « extra_1 » à « extra_4 » pour ajouter, « retirer » (identifiants séparés par des virgules) pour supprimer. */
+function mbk_api_gallery(int $post_id, WP_REST_Request $r) {
+  $ids = array_values(array_filter(array_map('intval', (array) get_post_meta($post_id, MBK_GAL, true))));
+  foreach (array_filter(array_map('intval', explode(',', (string) $r->get_param('retirer')))) as $d) {
+    if (!in_array($d, $ids, true)) continue; // seulement les photos de CETTE plante
+    wp_delete_attachment($d, true);
+    $ids = array_values(array_diff($ids, [$d]));
+  }
+  for ($i = 1; $i <= MBK_GAL_MAX; $i++) {
+    $att = mbk_api_upload('extra_' . $i, $post_id);
+    if (is_wp_error($att)) return $att;
+    if (!$att) continue;
+    if (count($ids) >= MBK_GAL_MAX) { wp_delete_attachment($att, true); continue; } // 5 photos au maximum : la principale + 4
+    $ids[] = $att;
+  }
+  update_post_meta($post_id, MBK_GAL, $ids);
+  return $ids;
+}
+
+/** Champs publics lus par la boutique : nom local et galerie (adresses des photos supplémentaires). */
+function mbk_api_public_gallery($o) {
+  $out = [];
+  foreach (array_filter(array_map('intval', (array) get_post_meta($o['id'], MBK_GAL, true))) as $id) {
+    $big = wp_get_attachment_image_src($id, 'mbk-1200') ?: wp_get_attachment_image_src($id, 'large') ?: wp_get_attachment_image_src($id, 'full');
+    if (!$big) continue;
+    $set = [];
+    foreach (['mbk-400', 'mbk-800', 'mbk-1200'] as $size) {
+      $im = wp_get_attachment_image_src($id, $size);
+      if ($im && $im[1]) $set[] = $im[0] . ' ' . $im[1] . 'w';
+    }
+    $out[] = ['src' => $big[0], 'srcset' => implode(', ', array_unique($set)), 'w' => (int) $big[1], 'h' => (int) $big[2]];
+  }
+  return $out;
+}
+add_action('rest_api_init', function () {
+  register_rest_field(MBK_CPT, 'nom_local', ['get_callback' => function ($o) { return (string) get_post_meta($o['id'], 'nom_local', true); }, 'schema' => ['type' => 'string', 'context' => ['view']]]);
+  register_rest_field(MBK_CPT, 'galerie', ['get_callback' => 'mbk_api_public_gallery', 'schema' => ['type' => 'array', 'context' => ['view']]]);
+});
 
 /* ------------------------------------------------------------------ */
 /* Routes                                                               */
@@ -215,6 +277,8 @@ function mbk_api_create(WP_REST_Request $r) {
   if ($cle !== '') update_post_meta($id, '_mbk_cle', $cle);
   $photo = mbk_api_photo($id);
   if (is_wp_error($photo)) { wp_delete_post($id, true); return $photo; }
+  $gal = mbk_api_gallery($id, $r);
+  if (is_wp_error($gal)) { wp_delete_post($id, true); return $gal; }
   mbk_api_apply($id, $f);
   if ($status === 'publish') wp_update_post(['ID' => $id, 'post_status' => 'publish']);
   return new WP_REST_Response(mbk_api_plante(get_post($id)), 201);
@@ -228,6 +292,8 @@ function mbk_api_update(WP_REST_Request $r) {
 
   $photo = mbk_api_photo($p->ID);
   if (is_wp_error($photo)) return $photo;
+  $gal = mbk_api_gallery($p->ID, $r);
+  if (is_wp_error($gal)) return $gal;
   $status = $f['statut'] ?? $p->post_status;
   if ($status === 'publish' && !get_post_thumbnail_id($p)) return new WP_Error('mbk_photo', 'Ajoutez une photo de votre plante avant de publier.', ['status' => 400]);
 

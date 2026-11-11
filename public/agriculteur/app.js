@@ -88,7 +88,7 @@
   const urlOf = (e) => { if (!e.blob) return ''; if (!urls.has(e.key)) urls.set(e.key, URL.createObjectURL(e.blob)); return urls.get(e.key); };
   const dropUrl = (key) => { const u = urls.get(key); if (u) { URL.revokeObjectURL(u); urls.delete(key); } };
 
-  const fromFields = (f) => ({ titre: f.titre, categorie: f.categorie, prix: Number(f.prix) || 0, conditionnement: f.conditionnement, disponible: f.disponible === '1', description: f.description, conseils: f.conseils, statut: f.statut });
+  const fromFields = (f) => ({ titre: f.titre, nom_local: f.nom_local || '', categorie: f.categorie, prix: Number(f.prix) || 0, conditionnement: f.conditionnement, disponible: f.disponible === '1', description: f.description, conseils: f.conseils, statut: f.statut });
 
   // Fusionne la liste du serveur et la file d'attente : ce que voit l'agriculteur, avec ses enregistrements pas encore partis
   function rebuild() {
@@ -119,16 +119,20 @@
   }
   const mergeServer = (saved) => { const i = state.server.findIndex((p) => p.id === saved.id); if (i >= 0) state.server[i] = saved; else state.server.unshift(saved); };
 
-  function toForm(fields, blob, cle) {
+  const ext = (b) => (b.type === 'image/webp' ? 'webp' : 'jpg');
+  // Photo principale (photo) + photos supplémentaires (extra_1 à extra_4, 5 photos au maximum) + photos à retirer (identifiants)
+  function toForm(fields, blob, cle, extras = [], retirer = []) {
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.append(k, v);
     if (cle) fd.append('cle', cle);
-    if (blob) fd.append('photo', blob, 'plante.' + (blob.type === 'image/webp' ? 'webp' : 'jpg'));
+    if (blob) fd.append('photo', blob, 'plante.' + ext(blob));
+    extras.slice(0, 4).forEach((b, i) => fd.append('extra_' + (i + 1), b, `plante-${i + 2}.` + ext(b)));
+    if (retirer.length) fd.append('retirer', retirer.join(','));
     return fd;
   }
   const sendEntry = (e, onProgress = () => {}) =>
-    e.type === 'create' ? upload('/plantes', toForm(e.fields, e.blob, e.key), onProgress)
-      : e.type === 'update' ? upload(`/plantes/${e.plantId}`, toForm(e.fields, e.blob), onProgress)
+    e.type === 'create' ? upload('/plantes', toForm(e.fields, e.blob, e.key, e.extras, e.retirer), onProgress)
+      : e.type === 'update' ? upload(`/plantes/${e.plantId}`, toForm(e.fields, e.blob, null, e.extras, e.retirer), onProgress)
         : api(`/plantes/${e.plantId}/disponibilite`, { method: 'POST', json: { disponible: e.disponible } });
 
   /* ----- Envoi des enregistrements en attente ----- */
@@ -237,6 +241,7 @@
       <div class="flex-1 min-w-0 flex flex-col justify-between">
         <div>
           <a href="#/plante/${p.id}" class="block font-display font-bold text-xl leading-tight line-clamp-2 break-words">${esc(p.titre)}</a>
+          ${p.nom_local ? `<p class="text-base italic text-slate-700 line-clamp-1 break-words">${esc(p.nom_local)}</p>` : ''}
           <p class="text-slate-700">${p.prix ? fcfa(p.prix) + ' FCFA' + (p.conditionnement ? ' / ' + esc(UNIT(p.conditionnement)) : '') : 'Prix sur demande'}</p>
         </div>
         <span class="self-start rounded-full px-3 py-0.5 text-base font-bold text-leaf-900 ${chip[0]}">${chip[1]}</span>
@@ -310,6 +315,66 @@
       <div class="mt-3 grid grid-cols-2 gap-3"><label for="cam" class="${btn}">${ICON.camera('w-6 h-6')}Reprendre</label><label for="gal" class="${btn}">Galerie</label></div>${inputs}`;
   }
 
+  /* ----- Identification de la plante (façon Google Lens) ----- */
+  const CONF = { forte: 'Très probable', moyenne: 'Probable', faible: 'Possible' };
+  function identBlock() {
+    const f = state.form, st = f.ident || { status: 'idle' };
+    if (!state.config?.ia || !f.blob) return '';
+    const btn = (label) => `<button type="button" data-act="identify" class="w-full flex items-center justify-center gap-2.5 min-h-14 rounded-2xl border-2 border-leaf-900 bg-white text-leaf-900 font-display font-bold text-xl active:bg-leaf-100">${ICON.spark}${label}</button>`;
+    if (st.status === 'loading') return `<p role="status" class="rounded-2xl bg-leaf-50 border-2 border-leaf-100 px-4 py-4 font-display font-bold text-xl">L’assistant regarde votre photo…</p>`;
+    if (st.status === 'error') return `<p role="status" class="rounded-2xl bg-sun-soft px-4 py-3 font-semibold">${esc(st.message)}</p><div class="mt-3">${btn('Réessayer')}</div>`;
+    if (st.status === 'done') {
+      const list = st.suggestions.length ? `
+        <p class="font-display font-bold text-xl">Cette plante ressemble à :</p>
+        <ul class="mt-2 space-y-2">${st.suggestions.map((x, i) => `
+          <li><button type="button" data-pick="${i}" aria-pressed="${st.picked === i}" class="w-full text-left rounded-2xl border-2 px-4 py-3 min-h-16 ${st.picked === i ? 'bg-leaf-900 text-white border-leaf-900' : 'bg-white border-leaf-600'}">
+            <span class="flex items-center justify-between gap-3"><span class="font-display font-extrabold text-2xl">${esc(x.nom)}</span><span class="shrink-0 text-sm font-bold rounded-full px-2.5 py-0.5 ${st.picked === i ? 'bg-white text-leaf-900' : 'bg-leaf-100 text-leaf-900'}">${CONF[x.confiance] || 'Possible'}</span></span>
+            ${x.nom_scientifique ? `<span class="block text-base italic ${st.picked === i ? 'text-leaf-100' : 'text-slate-700'}">${esc(x.nom_scientifique)}</span>` : ''}
+          </button></li>`).join('')}</ul>
+        <p class="mt-2 text-base text-slate-700">Suggestion de l’assistant : touchez le bon nom, ou saisissez-le vous-même ci-dessous.</p>`
+        : `<p class="font-semibold">Pas de suggestion pour cette photo.</p>`;
+      return `${list}${st.remarque ? `<p role="status" class="mt-3 rounded-2xl bg-sun-soft px-4 py-3 font-semibold">${esc(st.remarque)}</p>` : ''}<div class="mt-3">${btn('Identifier à nouveau')}</div>`;
+    }
+    return `${btn('Identifier la plante')}<p class="mt-2 text-base text-slate-700">Une photo nette des feuilles aide l’assistant à trouver le nom.</p>`;
+  }
+  const renderIdent = () => { const el = $('#ident'); if (el) el.innerHTML = identBlock(); };
+
+  async function identify() {
+    const f = state.form; if (!f?.blob) return;
+    if (!navigator.onLine) { f.ident = { status: 'error', message: 'Hors connexion : l’identification a besoin du réseau. Saisissez le nom vous-même.' }; return renderIdent(); }
+    f.ident = { status: 'loading' }; renderIdent();
+    const fd = new FormData(); fd.append('photo', f.blob, 'plante.' + ext(f.blob));
+    try {
+      const out = await upload('/ia/identifier', fd, () => {});
+      f.ident = { status: 'done', suggestions: out.suggestions || [], remarque: out.remarque || '' };
+    } catch (e) {
+      if (e.code === 'session') return sessionLost();
+      f.ident = { status: 'error', message: e.message };
+    }
+    if (state.form === f) renderIdent();   // l'agriculteur a pu quitter l'écran entre-temps
+  }
+  function pickSuggestion(i) {
+    const f = state.form, x = f.ident?.suggestions?.[i]; if (!x) return;
+    if (f.titre.trim() && f.titre.trim() !== x.nom && !confirm(`Remplacer « ${f.titre.trim()} » par « ${x.nom} » ?`)) return;
+    f.titre = x.nom; $('#f-titre').value = x.nom; f.ident.picked = i; renderIdent();
+  }
+
+  /* ----- Photos supplémentaires : la principale + 4 au maximum ----- */
+  const extraSlots = () => 4 - state.form.gallery.length - state.form.extras.length;
+  function extrasBlock() {
+    const f = state.form, slots = extraSlots();
+    const thumb = (url, rm) => `<div class="relative aspect-square rounded-2xl overflow-hidden bg-leaf-50 border-2 border-leaf-100"><img src="${esc(url)}" alt="" class="w-full h-full object-cover">
+      <button type="button" data-rm="${rm}" aria-label="Retirer cette photo" class="absolute top-1 right-1 w-11 h-11 rounded-full bg-white/95 text-leaf-900 font-extrabold text-xl shadow">✕</button></div>`;
+    const tile = 'flex flex-col items-center justify-center gap-1 aspect-square rounded-2xl border-4 border-dashed border-leaf-600 bg-white text-leaf-700 font-display font-bold text-center cursor-pointer active:bg-leaf-100';
+    const inputs = `<input id="xcam" type="file" accept="image/*" capture="environment" class="sr-only"><input id="xgal" type="file" accept="image/*" multiple class="sr-only">`;
+    if (f.xbusy) return `<p role="status" class="rounded-2xl bg-white border-2 border-leaf-100 px-4 py-6 text-center font-display font-bold text-xl">Préparation des photos…</p>${inputs}`;
+    return `<div class="grid grid-cols-3 gap-3">
+      ${f.gallery.map((g) => thumb(g.url, 'gal:' + g.id)).join('')}${f.extras.map((x, i) => thumb(x.url, 'new:' + i)).join('')}
+      ${slots > 0 ? `<label for="xcam" class="${tile}">${ICON.camera('w-8 h-8')}<span class="text-base">Photo</span></label><label for="xgal" class="${tile}"><span class="text-base">Galerie</span></label>` : ''}
+    </div>${inputs}`;
+  }
+  const renderExtras = () => { const el = $('#extras'); if (el) el.innerHTML = extrasBlock(); };
+
   function viewForm(id) {
     state.view = 'form';
     const e = id ? state.plantes.find((p) => p.id === id) : null;
@@ -317,10 +382,14 @@
     if (state.form?.id !== (id || null) || state.form?.done) {
       const q = e ? entryFor(e) : null; // enregistrement en attente pour cette plante : on reprend sa photo
       state.form = {
-        id: id || null, titre: e?.titre || '', categorie: e?.categorie || '', prix: e?.prix ? String(e.prix) : '', conditionnement: e?.conditionnement || '',
+        id: id || null, titre: e?.titre || '', nom_local: e?.nom_local || '', categorie: e?.categorie || '', prix: e?.prix ? String(e.prix) : '', conditionnement: e?.conditionnement || '',
         disponible: e ? e.disponible : true, description: e?.description || '', conseils: e?.conseils || '', statut: e?.statut || 'draft',
         photoUrl: q?.blob ? '' : (e?.photo || ''), blob: q?.blob || null, previewUrl: q?.blob ? URL.createObjectURL(q.blob) : '', busy: false,
+        // photos supplémentaires : déjà en ligne (gallery, moins celles à retirer), nouvelles (extras) et à retirer (removed)
+        removed: q?.retirer ? [...q.retirer] : [],
+        extras: (q?.extras || []).map((b) => ({ blob: b, url: URL.createObjectURL(b) })), xbusy: false, ident: null,
       };
+      state.form.gallery = (e?.galerie || []).filter((g) => !state.form.removed.includes(g.id));
     }
     const f = state.form, cfg = state.config, published = f.statut === 'publish';
     const lab = 'block font-display font-bold text-xl mb-2';
@@ -333,10 +402,16 @@
     <form id="plant" class="px-4 pt-5 pb-48 space-y-7" novalidate>
       <p id="err" role="alert" tabindex="-1" class="${e?.erreur ? '' : 'hidden'} rounded-2xl bg-carrot text-leaf-900 font-bold px-4 py-3">${e?.erreur ? 'Le serveur a refusé cet enregistrement : ' + esc(e.erreur) : ''}</p>
 
-      <section aria-labelledby="l-photo"><h2 id="l-photo" class="${lab}">Photo de la plante</h2><div id="photo">${photoBlock()}</div></section>
+      <section aria-labelledby="l-photo"><h2 id="l-photo" class="${lab}">Photo de la plante</h2><div id="photo">${photoBlock()}</div><div id="ident" class="mt-4">${identBlock()}</div></section>
+
+      <section aria-labelledby="l-extras"><h2 id="l-extras" class="${lab}">Autres photos <span class="text-base font-normal text-slate-700">(4 au maximum)</span></h2><div id="extras">${extrasBlock()}</div></section>
 
       <section><label for="f-titre" class="${lab}">Nom de la plante</label>
         <input id="f-titre" value="${esc(f.titre)}" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Menthe, manguier, basilic…" class="w-full h-16 rounded-2xl border-2 border-leaf-100 bg-white px-4 text-xl focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60"></section>
+
+      <section><label for="f-local" class="${lab}">Nom local (wolof)</label>
+        <input id="f-local" value="${esc(f.nom_local)}" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Facultatif" class="w-full h-16 rounded-2xl border-2 border-leaf-100 bg-white px-4 text-xl focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">
+        <p class="mt-1.5 text-slate-700 text-base">Le nom que vos clients utilisent. Ils pourront le chercher dans la boutique.</p></section>
 
       <section><h2 id="f-categorie" tabindex="-1" class="${lab}">Catégorie</h2>
         <div class="grid grid-cols-2 gap-3" role="radiogroup" aria-labelledby="f-categorie">
@@ -389,7 +464,7 @@
   function bindForm() {
     const f = state.form, form = $('#plant');
     const text = (id, key) => $(id).addEventListener('input', (e) => { f[key] = e.target.value; });
-    text('#f-titre', 'titre'); text('#f-desc', 'description'); text('#f-conseils', 'conseils');
+    text('#f-titre', 'titre'); text('#f-local', 'nom_local'); text('#f-desc', 'description'); text('#f-conseils', 'conseils');
     $('#f-prix').addEventListener('input', (e) => { e.target.value = f.prix = e.target.value.replace(/\D/g, ''); });
     $('#f-dispo').addEventListener('change', (e) => { f.disponible = e.target.checked; });
     form.addEventListener('change', (e) => { if (e.target.name === 'categorie') f.categorie = e.target.value; if (e.target.name === 'conditionnement') f.conditionnement = e.target.value; });
@@ -401,9 +476,33 @@
       try {
         const blob = await compress(file);
         if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-        f.blob = blob; f.previewUrl = URL.createObjectURL(blob);
+        f.blob = blob; f.previewUrl = URL.createObjectURL(blob); f.ident = null;
       } catch { fail('Cette photo n’a pas pu être lue. Essayez-en une autre.'); }
-      f.busy = false; $('#photo').innerHTML = photoBlock();
+      f.busy = false; $('#photo').innerHTML = photoBlock(); renderIdent();
+      // comme Google Lens : une nouvelle photo et pas encore de nom → l'assistant propose des noms tout seul
+      if (f.blob && state.config?.ia && navigator.onLine && !f.titre.trim() && !f.id) identify();
+    });
+    // Photos supplémentaires (une à la fois avec l'appareil, plusieurs d'un coup depuis la galerie), 4 au maximum
+    form.addEventListener('change', async (e) => {
+      if (e.target.id !== 'xcam' && e.target.id !== 'xgal') return;
+      const files = [...(e.target.files || [])].slice(0, Math.max(0, extraSlots())); if (!files.length) return;
+      f.xbusy = true; renderExtras();
+      for (const file of files) {
+        try { const blob = await compress(file); f.extras.push({ blob, url: URL.createObjectURL(blob) }); }
+        catch { toast('Une photo n’a pas pu être lue.', 'err'); }
+      }
+      f.xbusy = false; renderExtras();
+    });
+    form.addEventListener('click', (e) => {
+      const rm = e.target.closest('[data-rm]')?.dataset.rm;
+      if (rm) {
+        const [kind, v] = rm.split(':');
+        if (kind === 'gal') { f.removed.push(Number(v)); f.gallery = f.gallery.filter((g) => g.id !== Number(v)); }
+        else { const [x] = f.extras.splice(Number(v), 1); if (x) URL.revokeObjectURL(x.url); }
+        renderExtras();
+      }
+      if (e.target.closest('[data-act="identify"]')) identify();
+      const pick = e.target.closest('[data-pick]'); if (pick) pickSuggestion(Number(pick.dataset.pick));
     });
     $('#ia')?.addEventListener('click', describe);
     document.querySelectorAll('[data-save]').forEach((b) => b.addEventListener('click', () => save(b.dataset.save)));
@@ -427,14 +526,14 @@
     if (!f.categorie) return fail('Choisissez une catégorie.', 'f-categorie');
     if (statut === 'publish' && !f.blob && !f.photoUrl) return fail('Ajoutez une photo avant de publier.', 'f-photo');
     const fields = {
-      titre: f.titre.trim(), categorie: f.categorie, prix: f.prix || '0', conditionnement: f.conditionnement,
+      titre: f.titre.trim(), nom_local: f.nom_local.trim(), categorie: f.categorie, prix: f.prix || '0', conditionnement: f.conditionnement,
       disponible: f.disponible ? '1' : '0', description: f.description.trim(), conseils: f.conseils.trim(), statut,
     };
     const isLocal = typeof f.id === 'string';
     const key = isLocal ? f.id : f.id ? 'u-' + f.id : 'c-' + uid();
     const entry = {
       key, type: isLocal || !f.id ? 'create' : 'update', plantId: isLocal || !f.id ? undefined : f.id,
-      fields, blob: f.blob || null, user: state.me.id, createdAt: state.queue.find((q) => q.key === key)?.createdAt || Date.now(),
+      fields, blob: f.blob || null, extras: f.extras.map((x) => x.blob), retirer: f.removed, user: state.me.id, createdAt: state.queue.find((q) => q.key === key)?.createdAt || Date.now(),
     };
     const done = (msg) => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); f.done = true; toast(msg); location.hash = '#/'; };
 
