@@ -161,6 +161,22 @@ export function farmerRouter() {
     aiLimit(req.sess.id, 'identification');
     res.json(await identifyPlant({ image: req.file.buffer, mime: req.file.mimetype }));
   }));
+  // Relais d'une photo déjà en ligne : le navigateur ne peut pas la relire lui-même (autre domaine, pas d'autorisation CORS) et
+  // sans cela il ne pourrait pas la recadrer ni la retoucher. Seules les photos de la médiathèque du WordPress configuré passent.
+  api.get('/photo', auth, wrap(async (req, res) => {
+    let u;
+    try { u = new URL(String(req.query.u || '')); } catch { throw new HttpError(400, 'Adresse de photo invalide.', 'champ'); }
+    if (u.host !== new URL(WP_URL).host || !u.pathname.startsWith('/wp-content/uploads/') || !/\.(webp|jpe?g|png)$/i.test(u.pathname)) {
+      throw new HttpError(400, 'Photo non autorisée.', 'champ');
+    }
+    let r;
+    try { r = await fetch(u, { redirect: 'error', signal: AbortSignal.timeout(30000) }); } catch { throw new HttpError(502, 'La photo n’a pas pu être récupérée.', 'reseau'); }
+    const type = r.headers.get('content-type') || '';
+    if (!r.ok || !/^image\/(webp|jpeg|png)/.test(type)) throw new HttpError(404, 'Photo introuvable.', 'introuvable');
+    if (Number(r.headers.get('content-length') || 0) > 12 * 1024 * 1024) throw new HttpError(413, 'Photo trop lourde.', 'photo');
+    res.set({ 'Content-Type': type, 'Cache-Control': 'private, max-age=300' });
+    res.send(Buffer.from(await r.arrayBuffer()));
+  }));
   api.get('/plantes', auth, wrap(async (req, res) => res.json(await wp(req.sess, 'GET', '/plantes'))));
   api.post('/plantes', auth, plantPhotos, wrap(async (req, res) => res.status(201).json(await wp(req.sess, 'POST', '/plantes', { form: toForm(req) }))));
   api.post('/plantes/:id(\\d+)', auth, plantPhotos, wrap(async (req, res) => res.json(await wp(req.sess, 'POST', `/plantes/${req.params.id}`, { form: toForm(req) }))));
