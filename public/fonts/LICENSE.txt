@@ -1,6 +1,5 @@
 Polices embarquées, toutes sous licence SIL Open Font License 1.1 (https://openfontlicense.org) :
 - Fraunces - Copyright 2020 The Fraunces Project Authors (github.com/undercasetype/Fraunces)
 - Source Sans 3 - Copyright 2010-2020 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'
-- Baloo 2 - Copyright 2016 The Baloo Project Authors (github.com/EkType/Baloo2)
 Fichiers WOFF2 issus des paquets @fontsource (extraits « latin » et « latin-ext »).
 La licence autorise l'usage, la copie et la redistribution, y compris dans un site web.
