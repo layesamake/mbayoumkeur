@@ -1,6 +1,6 @@
-// Service worker de l'espace agriculteur : l'application s'ouvre même sans réseau (l'écran, pas les données).
-const CACHE = 'mbk-agri-v1';
-const SHELL = ['/agriculteur', '/agriculteur/app.js', '/agriculteur/manifest.webmanifest', '/agriculteur/icon-192.png', '/style.css'];
+// Service worker de l'espace agriculteur : l'application s'ouvre même sans réseau (l'écran ; les données viennent de la mémoire du téléphone).
+const CACHE = 'mbk-agri-v2';
+const SHELL = ['/agriculteur', '/agriculteur/app.js', '/agriculteur/manifest.webmanifest', '/agriculteur/icon-192.png', '/style.css', '/img/emblem.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

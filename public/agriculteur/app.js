@@ -1,15 +1,18 @@
 // Espace agriculteur : application mobile (PWA) pour saisir ses plantes sur le terrain.
 // Pensée pour le plein soleil et les mains sales : gros texte, grosses cibles, actions en bas de l'écran.
+// Hors connexion : ce que l'agriculteur enregistre est gardé sur le téléphone (IndexedDB) puis envoyé tout seul au retour du réseau.
 (() => {
   'use strict';
   const app = document.getElementById('app');
   const toastBox = document.getElementById('toast');
-  const state = { me: null, config: null, plantes: [], filter: 'tout', form: null };
+  // server : plantes connues du serveur ; queue : enregistrements en attente d'envoi ; plantes : ce que l'écran affiche (les deux fusionnés)
+  const state = { me: null, config: null, server: [], queue: [], plantes: [], filter: 'tout', form: null, view: '', offline: false, snapAt: 0 };
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fcfa = (n) => new Intl.NumberFormat('fr-FR').format(n);
   const plural = (n, a, b) => (n > 1 ? b : a);
   const $ = (sel, root = document) => root.querySelector(sel);
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
 
   const ICON = {
     camera: (c = 'w-8 h-8') => `<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.4h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.8"/></svg>`,
@@ -46,14 +49,117 @@
       x.send(form);
     });
   }
+  // Coupure réseau (ou serveur injoignable) : l'envoi est à refaire plus tard, ce n'est pas une erreur de l'agriculteur
+  const isNetErr = (e) => Boolean(e?.offline) || [502, 503, 504].includes(e?.status) || e?.code === 'reseau';
 
   function toast(msg, kind = 'ok') {
     const el = document.createElement('div');
     el.className = `mx-auto max-w-md rounded-2xl px-5 py-4 font-semibold shadow-[0_6px_0_rgba(0,0,0,.2)] ${kind === 'ok' ? 'bg-leaf-900 text-white' : 'bg-carrot text-leaf-900'}`;
     el.textContent = msg;
     toastBox.replaceChildren(el);
-    setTimeout(() => el.remove(), 3800);
+    setTimeout(() => el.remove(), 4200);
   }
+
+  /* ---------------- Mémoire du téléphone (IndexedDB) : file d'attente et dernière liste connue ---------------- */
+  const hasIDB = typeof indexedDB !== 'undefined';
+  function idb() {
+    return (idb.p ??= new Promise((ok, ko) => {
+      const r = indexedDB.open('mbk-agri', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('queue', { keyPath: 'key' }); r.result.createObjectStore('cache', { keyPath: 'k' }); };
+      r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error);
+    }));
+  }
+  async function store(name, mode, fn) {
+    const d = await idb();
+    return new Promise((ok, ko) => {
+      const t = d.transaction(name, mode), req = fn(t.objectStore(name));
+      t.oncomplete = () => ok(req?.result); t.onerror = t.onabort = () => ko(t.error);
+    });
+  }
+  const qAll = () => store('queue', 'readonly', (s) => s.getAll());
+  const qPut = (e) => store('queue', 'readwrite', (s) => s.put(e));
+  const qDel = (k) => store('queue', 'readwrite', (s) => s.delete(k));
+  const cGet = () => store('cache', 'readonly', (s) => s.get('snap'));
+  const cPut = (v) => store('cache', 'readwrite', (s) => s.put({ k: 'snap', v, at: Date.now() }));
+  const cDel = () => store('cache', 'readwrite', (s) => s.delete('snap'));
+
+  // Photos des enregistrements en attente : adresses locales créées à la demande
+  const urls = new Map();
+  const urlOf = (e) => { if (!e.blob) return ''; if (!urls.has(e.key)) urls.set(e.key, URL.createObjectURL(e.blob)); return urls.get(e.key); };
+  const dropUrl = (key) => { const u = urls.get(key); if (u) { URL.revokeObjectURL(u); urls.delete(key); } };
+
+  const fromFields = (f) => ({ titre: f.titre, categorie: f.categorie, prix: Number(f.prix) || 0, conditionnement: f.conditionnement, disponible: f.disponible === '1', description: f.description, conseils: f.conseils, statut: f.statut });
+
+  // Fusionne la liste du serveur et la file d'attente : ce que voit l'agriculteur, avec ses enregistrements pas encore partis
+  function rebuild() {
+    const list = state.server.map((p) => ({ ...p }));
+    const byId = new Map(list.map((p) => [p.id, p]));
+    const locals = [];
+    for (const e of state.queue) {
+      if (e.type === 'create') { locals.push({ id: e.key, local: true, pending: true, erreur: e.error, photo: urlOf(e), ref: '', ...fromFields(e.fields) }); continue; }
+      const p = byId.get(e.plantId);
+      if (!p) continue;
+      if (e.type === 'update') Object.assign(p, fromFields(e.fields), { pending: true, erreur: e.error, ...(e.blob ? { photo: urlOf(e) } : {}) });
+      if (e.type === 'stock') Object.assign(p, { disponible: e.disponible, pending: true });
+    }
+    state.plantes = [...locals, ...list];
+  }
+  const entryFor = (p) => state.queue.find((e) => e.key === (p.local ? p.id : 'u-' + p.id));
+
+  async function enqueue(entry) {
+    if (!hasIDB) throw new Error('Ce téléphone ne peut pas garder l’enregistrement hors connexion.');
+    try { await qPut(entry); } catch { throw new Error('Ce téléphone ne peut pas garder l’enregistrement hors connexion.'); }
+    const i = state.queue.findIndex((q) => q.key === entry.key);
+    if (i >= 0) state.queue[i] = entry; else state.queue.push(entry);
+    dropUrl(entry.key); rebuild();
+  }
+  async function dequeue(key) {
+    try { await qDel(key); } catch {}
+    state.queue = state.queue.filter((q) => q.key !== key); dropUrl(key); rebuild();
+  }
+  const mergeServer = (saved) => { const i = state.server.findIndex((p) => p.id === saved.id); if (i >= 0) state.server[i] = saved; else state.server.unshift(saved); };
+
+  function toForm(fields, blob, cle) {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+    if (cle) fd.append('cle', cle);
+    if (blob) fd.append('photo', blob, 'plante.' + (blob.type === 'image/webp' ? 'webp' : 'jpg'));
+    return fd;
+  }
+  const sendEntry = (e, onProgress = () => {}) =>
+    e.type === 'create' ? upload('/plantes', toForm(e.fields, e.blob, e.key), onProgress)
+      : e.type === 'update' ? upload(`/plantes/${e.plantId}`, toForm(e.fields, e.blob), onProgress)
+        : api(`/plantes/${e.plantId}/disponibilite`, { method: 'POST', json: { disponible: e.disponible } });
+
+  /* ----- Envoi des enregistrements en attente ----- */
+  let flushing = false;
+  async function flush(force = false) {
+    if (flushing || !state.me || !state.queue.length || !navigator.onLine) return;
+    flushing = true;
+    let sent = 0, stopped = false;
+    try {
+      for (const e of [...state.queue].sort((a, b) => a.createdAt - b.createdAt)) {
+        if (e.error && !force) continue;                // refusé par le serveur : attend que l'agriculteur le corrige
+        try {
+          const saved = await sendEntry(e);
+          if (e.type !== 'stock' && saved?.id) mergeServer(saved);
+          await dequeue(e.key); sent++;
+        } catch (err) {
+          if (err.code === 'session') { stopped = true; sessionLost(); break; }  // connexion à refaire : rien n'est perdu
+          if (isNetErr(err)) break;                     // réseau toujours absent : on réessaiera
+          if (err.status === 404 && e.type !== 'create') { await dequeue(e.key); continue; } // la plante n'existe plus
+          e.error = err.message; try { await qPut(e); } catch {}                // à corriger par l'agriculteur
+        }
+      }
+    } finally { flushing = false; }
+    if (stopped) return;
+    if (sent) { await refreshServer(); toast(`${sent} ${plural(sent, 'enregistrement envoyé', 'enregistrements envoyés')}`); }
+    rebuild(); refreshView();
+  }
+  async function refreshServer() {
+    try { const { plantes } = await api('/plantes'); state.server = plantes; state.offline = false; cPut({ me: state.me, config: state.config, plantes }).catch(() => {}); rebuild(); } catch {}
+  }
+  const refreshView = () => { if (state.view === 'home') viewHome(); };
 
   /* ---------------- Photo : réduite sur le téléphone avant l'envoi ---------------- */
   // 4 à 8 Mo en sortie d'appareil photo seraient trop lourds en 3G : on envoie ~200–400 Ko.
@@ -77,9 +183,12 @@
   const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' Mo' : Math.max(1, Math.round(n / 1024)) + ' Ko');
 
   /* ---------------- Écrans ---------------- */
-  const banner = () => (navigator.onLine ? '' : `<p role="status" class="bg-carrot text-leaf-900 font-bold text-center px-4 py-3">Hors connexion : vos plantes s’afficheront, mais l’envoi attendra le réseau.</p>`);
+  const bannerText = () => (navigator.onLine ? '' : `<p role="status" class="bg-carrot text-leaf-900 font-bold text-center px-4 py-3">Hors connexion. Ce que vous enregistrez reste sur le téléphone et part dès que le réseau revient.</p>`);
+  const banner = () => `<div id="net">${bannerText()}</div>`;
+  const updateBanner = () => { const el = $('#net'); if (el) el.innerHTML = bannerText(); };
 
   function viewLogin(msg = '') {
+    state.view = 'login';
     app.innerHTML = `
     <main class="min-h-screen bg-leaf-900 text-white flex flex-col px-6 pt-[max(2.5rem,env(safe-area-inset-top))] pb-8">
       ${banner()}
@@ -103,7 +212,7 @@
       const btn = form.querySelector('button.w-full'); btn.disabled = true; btn.textContent = 'Connexion…'; err.classList.add('hidden');
       try {
         const out = await api('/login', { method: 'POST', json: { identifiant: $('#u').value.trim(), motdepasse: $('#p').value } });
-        state.me = { nom: out.nom };
+        state.me = { nom: out.nom, id: out.id };
         await boot();
       } catch (ex) {
         err.textContent = ex.message; err.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Se connecter';
@@ -116,17 +225,22 @@
 
   function card(p) {
     const online = p.statut === 'publish';
+    const chip = p.local ? ['border-2 border-dashed border-leaf-600 bg-white', 'En attente d’envoi']
+      : p.pending ? ['border-2 border-dashed border-leaf-600 bg-white', 'Modification en attente']
+        : online ? ['bg-leaf-100', 'En ligne'] : ['bg-sun-soft', 'Brouillon'];
+    const fallback = `<span aria-hidden=&quot;true&quot;>${icon(p.categorie)}</span>`;
     return `
-    <li class="bg-white rounded-3xl border-2 border-leaf-100 p-3 flex gap-3 items-stretch">
+    <li class="bg-white rounded-3xl border-2 ${p.erreur ? 'border-carrot' : 'border-leaf-100'} p-3 flex gap-3 items-stretch">
       <a href="#/plante/${p.id}" class="shrink-0 w-20 h-20 rounded-2xl overflow-hidden bg-leaf-50 flex items-center justify-center text-4xl" aria-label="Modifier ${esc(p.titre)}">
-        ${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" class="w-full h-full object-cover ${p.disponible ? '' : 'opacity-50 grayscale'}">` : `<span aria-hidden="true">${icon(p.categorie)}</span>`}
+        ${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" onerror="this.outerHTML='${fallback}'" class="w-full h-full object-cover ${p.disponible ? '' : 'opacity-50 grayscale'}">` : `<span aria-hidden="true">${icon(p.categorie)}</span>`}
       </a>
       <div class="flex-1 min-w-0 flex flex-col justify-between">
         <div>
           <a href="#/plante/${p.id}" class="block font-display font-bold text-xl leading-tight line-clamp-2 break-words">${esc(p.titre)}</a>
           <p class="text-slate-700">${p.prix ? fcfa(p.prix) + ' FCFA' + (p.conditionnement ? ' / ' + esc(UNIT(p.conditionnement)) : '') : 'Prix sur demande'}</p>
         </div>
-        <span class="self-start rounded-full px-3 py-0.5 text-base font-bold ${online ? 'bg-leaf-100 text-leaf-900' : 'bg-sun-soft text-leaf-900'}">${online ? 'En ligne' : 'Brouillon'}</span>
+        <span class="self-start rounded-full px-3 py-0.5 text-base font-bold text-leaf-900 ${chip[0]}">${chip[1]}</span>
+        ${p.erreur ? `<p class="mt-1 text-base font-semibold text-red-800">À corriger : ${esc(p.erreur)}</p>` : ''}
       </div>
       <label class="shrink-0 flex flex-col items-center justify-center gap-1.5 w-[4.25rem] cursor-pointer">
         <input type="checkbox" data-stock="${p.id}" class="peer sr-only" ${p.disponible ? 'checked' : ''}>
@@ -137,10 +251,14 @@
   }
 
   function viewHome() {
+    state.view = 'home';
     const all = state.plantes;
-    const on = all.filter((p) => p.statut === 'publish').length;
+    const real = all.filter((p) => !p.local);
+    const on = real.filter((p) => p.statut === 'publish' && !p.pending).length;
+    const n = state.queue.length;
     const shown = all.filter((p) => state.filter === 'tout' || (state.filter === 'ligne' ? p.statut === 'publish' : p.statut !== 'publish'));
     const tab = (k, label) => `<button type="button" role="tab" aria-selected="${state.filter === k}" data-filter="${k}" class="min-h-12 rounded-xl font-bold ${state.filter === k ? 'bg-leaf-900 text-white' : 'text-leaf-900'}">${label}</button>`;
+    const snap = state.offline && state.snapAt ? `<p class="mt-1 text-leaf-100 text-sm">Liste enregistrée le ${new Date(state.snapAt).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>` : '';
     app.innerHTML = `
     ${banner()}
     <header class="sticky top-0 z-30 bg-leaf-900 text-white px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-4">
@@ -148,9 +266,15 @@
         <div class="min-w-0"><p class="text-leaf-100 text-base">Bonjour</p><h1 class="font-display font-extrabold text-3xl leading-none truncate">${esc(state.me.nom)}</h1></div>
         <button type="button" data-act="logout" class="shrink-0 min-h-12 px-5 rounded-full border-2 border-white/40 font-semibold">Quitter</button>
       </div>
-      <p class="mt-3 text-leaf-100"><strong class="font-display text-white text-2xl">${all.length}</strong> ${plural(all.length, 'plante', 'plantes')}, dont <strong class="font-display text-white text-2xl">${on}</strong> en ligne</p>
+      <p class="mt-3 text-leaf-100"><strong class="font-display text-white text-2xl">${real.length}</strong> ${plural(real.length, 'plante', 'plantes')}, dont <strong class="font-display text-white text-2xl">${on}</strong> en ligne</p>${snap}
     </header>
     <main class="px-4 pt-4 pb-36">
+      ${n ? `
+      <section role="status" class="mb-4 rounded-2xl bg-sun-soft p-4">
+        <p class="font-display font-extrabold text-xl">${n} ${plural(n, 'enregistrement', 'enregistrements')} en attente d’envoi</p>
+        <p class="mt-0.5 text-base">${navigator.onLine ? 'Envoi en cours dès que possible.' : 'Ils partiront dès que le réseau revient. Rien n’est perdu.'}</p>
+        ${navigator.onLine ? `<button type="button" data-act="flush" class="mt-3 min-h-12 px-5 rounded-full bg-leaf-900 text-white font-bold">Envoyer maintenant</button>` : ''}
+      </section>` : ''}
       <div role="tablist" aria-label="Filtrer mes plantes" class="grid grid-cols-3 gap-1.5 p-1.5 bg-white rounded-2xl border-2 border-leaf-100">
         ${tab('tout', 'Toutes')}${tab('ligne', 'En ligne')}${tab('brouillon', 'Brouillons')}
       </div>
@@ -187,13 +311,15 @@
   }
 
   function viewForm(id) {
+    state.view = 'form';
     const e = id ? state.plantes.find((p) => p.id === id) : null;
     if (id && !e) { location.hash = ''; return; }
     if (state.form?.id !== (id || null) || state.form?.done) {
+      const q = e ? entryFor(e) : null; // enregistrement en attente pour cette plante : on reprend sa photo
       state.form = {
         id: id || null, titre: e?.titre || '', categorie: e?.categorie || '', prix: e?.prix ? String(e.prix) : '', conditionnement: e?.conditionnement || '',
         disponible: e ? e.disponible : true, description: e?.description || '', conseils: e?.conseils || '', statut: e?.statut || 'draft',
-        photoUrl: e?.photo || '', blob: null, previewUrl: '', busy: false,
+        photoUrl: q?.blob ? '' : (e?.photo || ''), blob: q?.blob || null, previewUrl: q?.blob ? URL.createObjectURL(q.blob) : '', busy: false,
       };
     }
     const f = state.form, cfg = state.config, published = f.statut === 'publish';
@@ -205,7 +331,7 @@
       <h1 class="font-display font-extrabold text-2xl truncate">${id ? 'Modifier la plante' : 'Nouvelle plante'}</h1>
     </header>
     <form id="plant" class="px-4 pt-5 pb-48 space-y-7" novalidate>
-      <p id="err" role="alert" tabindex="-1" class="hidden rounded-2xl bg-carrot text-leaf-900 font-bold px-4 py-3"></p>
+      <p id="err" role="alert" tabindex="-1" class="${e?.erreur ? '' : 'hidden'} rounded-2xl bg-carrot text-leaf-900 font-bold px-4 py-3">${e?.erreur ? 'Le serveur a refusé cet enregistrement : ' + esc(e.erreur) : ''}</p>
 
       <section aria-labelledby="l-photo"><h2 id="l-photo" class="${lab}">Photo de la plante</h2><div id="photo">${photoBlock()}</div></section>
 
@@ -244,7 +370,7 @@
         <div class="px-4 pb-4"><textarea id="f-conseils" rows="3" maxlength="1000" placeholder="Arrosage, soleil, quand récolter…" class="w-full rounded-2xl border-2 border-leaf-100 bg-leaf-50 p-4 text-xl leading-snug focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">${esc(f.conseils)}</textarea></div>
       </details>
 
-      ${id ? `<p class="pt-2 text-center"><button type="button" data-act="remove" class="min-h-12 px-4 font-bold text-red-800 underline underline-offset-4">Retirer cette plante</button></p>` : ''}
+      ${id ? `<p class="pt-2 text-center"><button type="button" data-act="remove" class="min-h-12 px-4 font-bold text-red-800 underline underline-offset-4">${typeof id === 'string' ? 'Supprimer cet enregistrement' : 'Retirer cette plante'}</button></p>` : ''}
     </form>
 
     <div class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t-2 border-leaf-100 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] grid ${published ? 'grid-cols-1' : 'grid-cols-2'} gap-3">
@@ -300,31 +426,41 @@
     if (f.titre.trim().length < 2) return fail('Indiquez le nom de la plante.', 'f-titre');
     if (!f.categorie) return fail('Choisissez une catégorie.', 'f-categorie');
     if (statut === 'publish' && !f.blob && !f.photoUrl) return fail('Ajoutez une photo avant de publier.', 'f-photo');
-    const fd = new FormData();
-    fd.append('titre', f.titre.trim()); fd.append('categorie', f.categorie); fd.append('prix', f.prix || '0');
-    fd.append('conditionnement', f.conditionnement); fd.append('disponible', f.disponible ? '1' : '0');
-    fd.append('description', f.description.trim()); fd.append('conseils', f.conseils.trim()); fd.append('statut', statut);
-    if (f.blob) fd.append('photo', f.blob, 'plante.' + (f.blob.type === 'image/webp' ? 'webp' : 'jpg'));
-    busy(true, 0);
-    try {
-      const saved = await upload(f.id ? `/plantes/${f.id}` : '/plantes', fd, (pct) => busy(true, pct));
-      const i = state.plantes.findIndex((p) => p.id === saved.id);
-      if (i >= 0) state.plantes[i] = saved; else state.plantes.unshift(saved);
-      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-      f.done = true;
-      toast(statut === 'publish' ? (f.id && f.statut === 'publish' ? 'Modifications enregistrées' : 'Plante publiée') : 'Brouillon enregistré');
-      location.hash = '#/';
-    } catch (e) {
-      busy(false);
-      if (e.code === 'session') return sessionLost();
-      fail(e.message);
+    const fields = {
+      titre: f.titre.trim(), categorie: f.categorie, prix: f.prix || '0', conditionnement: f.conditionnement,
+      disponible: f.disponible ? '1' : '0', description: f.description.trim(), conseils: f.conseils.trim(), statut,
+    };
+    const isLocal = typeof f.id === 'string';
+    const key = isLocal ? f.id : f.id ? 'u-' + f.id : 'c-' + uid();
+    const entry = {
+      key, type: isLocal || !f.id ? 'create' : 'update', plantId: isLocal || !f.id ? undefined : f.id,
+      fields, blob: f.blob || null, user: state.me.id, createdAt: state.queue.find((q) => q.key === key)?.createdAt || Date.now(),
+    };
+    const done = (msg) => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); f.done = true; toast(msg); location.hash = '#/'; };
+
+    if (navigator.onLine) {
+      busy(true, 0);
+      try {
+        const saved = await sendEntry(entry, (pct) => busy(true, pct));
+        await dequeue(key); mergeServer(saved); rebuild();
+        cPut({ me: state.me, config: state.config, plantes: state.server }).catch(() => {});
+        return done(statut === 'publish' ? (f.id && f.statut === 'publish' && !isLocal ? 'Modifications enregistrées' : 'Plante publiée') : 'Brouillon enregistré');
+      } catch (e) {
+        busy(false);
+        if (e.code === 'session') { try { await enqueue(entry); } catch {} return sessionLost(); } // rien n'est perdu : envoyé après la reconnexion
+        if (!isNetErr(e)) return fail(e.message);
+        // réseau coupé en cours d'envoi : on garde l'enregistrement sur le téléphone
+      }
     }
+    try { await enqueue(entry); } catch (e) { return fail(e.message); }
+    done(statut === 'publish' ? 'Enregistré sur le téléphone. La plante sera publiée dès que le réseau revient.' : 'Brouillon gardé sur le téléphone. Il partira dès que le réseau revient.');
   }
 
   /* ----- Assistant : propose description et conseils (l'agriculteur relit toujours) ----- */
   async function describe() {
     const f = state.form, btn = $('#ia'), label = $('#ia-label'), note = $('#ia-note'), warn = $('#ia-warn');
     warn.classList.add('hidden');
+    if (!navigator.onLine) { note.textContent = 'Hors connexion : l’assistant a besoin du réseau. Écrivez la description vous-même ou relancez-le plus tard.'; return; }
     if (f.titre.trim().length < 2) { note.textContent = 'Indiquez d’abord le nom de la plante.'; $('#f-titre').focus(); return; }
     const replacing = f.description.trim().length > 0;
     if (replacing && !confirm('Remplacer votre description par la proposition de l’assistant ?')) return;
@@ -353,11 +489,24 @@
   async function setStock(id, on, input) {
     const p = state.plantes.find((x) => x.id === id); if (!p) return;
     const label = $(`[data-stock-label="${id}"]`); if (label) label.textContent = on ? 'En stock' : 'Épuisé';
+    const val = on ? '1' : '0';
+    const keep = async () => {
+      // Hors connexion : la modification rejoint l'enregistrement en attente de cette plante, ou en crée un
+      let e = entryFor(p);
+      if (e && e.fields) { e.fields.disponible = val; await enqueue(e); }
+      else await enqueue({ key: 's-' + id, type: 'stock', plantId: id, disponible: on, user: state.me.id, createdAt: Date.now() });
+      toast('Enregistré sur le téléphone. Il partira dès que le réseau revient.');
+      refreshView();
+    };
     try {
+      if (p.local) { const e = entryFor(p); e.fields.disponible = val; await enqueue(e); return; }
+      if (!navigator.onLine) return await keep();
       const saved = await api(`/plantes/${id}/disponibilite`, { method: 'POST', json: { disponible: on } });
-      Object.assign(p, saved);
+      mergeServer(saved); await dequeue('s-' + id); // une ancienne bascule en attente ne doit pas écraser celle-ci
+      const e = entryFor(p); if (e?.fields) { e.fields.disponible = val; await enqueue(e); } else rebuild();
       toast(on ? `${p.titre} : en stock` : `${p.titre} : épuisé`);
     } catch (e) {
+      if (isNetErr(e)) { try { await keep(); } catch (x) { input.checked = !on; if (label) label.textContent = !on ? 'En stock' : 'Épuisé'; toast(x.message, 'err'); } return; }
       input.checked = !on; if (label) label.textContent = !on ? 'En stock' : 'Épuisé';
       if (e.code === 'session') return sessionLost();
       toast(e.message, 'err');
@@ -366,25 +515,41 @@
 
   async function removePlant() {
     const f = state.form; if (!f?.id) return;
+    if (typeof f.id === 'string') { // enregistrement pas encore parti : on l'abandonne simplement
+      if (!confirm('Supprimer cet enregistrement du téléphone ?')) return;
+      await dequeue(f.id); f.done = true; toast('Enregistrement supprimé'); location.hash = '#/'; return;
+    }
+    if (!navigator.onLine) return toast('Retirer une plante demande le réseau. Réessayez quand vous êtes connecté.', 'err');
     if (!confirm('Retirer cette plante de votre liste et de la boutique ?')) return;
     try {
       await api(`/plantes/${f.id}`, { method: 'DELETE' });
-      state.plantes = state.plantes.filter((p) => p.id !== f.id); f.done = true;
+      state.server = state.server.filter((p) => p.id !== f.id);
+      for (const e of state.queue.filter((q) => q.plantId === f.id)) await dequeue(e.key);
+      rebuild(); f.done = true;
       toast('Plante retirée'); location.hash = '#/';
     } catch (e) { if (e.code === 'session') return sessionLost(); toast(e.message, 'err'); }
   }
 
   async function logout() {
+    const n = state.queue.length;
+    if (n && !confirm(`${n} ${plural(n, 'enregistrement attend', 'enregistrements attendent')} d’être envoyé. ${plural(n, 'Il restera', 'Ils resteront')} sur ce téléphone jusqu’à votre prochaine connexion. Quitter quand même ?`)) return;
     try { await api('/logout', { method: 'POST' }); } catch {}
-    state.me = null; state.plantes = []; state.form = null; location.hash = ''; viewLogin();
+    try { await cDel(); } catch {}   // la liste mémorisée ne doit pas rester lisible une fois déconnecté
+    state.me = null; state.server = []; state.queue = []; state.plantes = []; state.form = null; location.hash = ''; viewLogin();
   }
-  function sessionLost() { state.me = null; viewLogin('Votre session a expiré. Reconnectez-vous.'); }
+  function sessionLost() { state.me = null; viewLogin('Votre session a expiré. Reconnectez-vous : vos enregistrements en attente sont gardés.'); }
 
   app.addEventListener('click', (e) => {
-    const a = e.target.closest('[data-act]'); if (a?.dataset.act === 'logout') logout(); if (a?.dataset.act === 'remove') removePlant();
+    const a = e.target.closest('[data-act]');
+    if (a?.dataset.act === 'logout') logout();
+    if (a?.dataset.act === 'remove') removePlant();
+    if (a?.dataset.act === 'flush') flush(true);
     const t = e.target.closest('[data-filter]'); if (t) { state.filter = t.dataset.filter; viewHome(); }
   });
-  app.addEventListener('change', (e) => { if (e.target.dataset?.stock) setStock(Number(e.target.dataset.stock), e.target.checked, e.target); });
+  app.addEventListener('change', (e) => {
+    const raw = e.target.dataset?.stock; if (raw === undefined) return;
+    setStock(/^\d+$/.test(raw) ? Number(raw) : raw, e.target.checked, e.target);
+  });
 
   /* ---------------- Démarrage ---------------- */
   function route() {
@@ -392,24 +557,39 @@
     const h = location.hash.replace(/^#\/?/, '');
     window.scrollTo(0, 0);
     if (h === 'nouvelle') return viewForm(null);
-    const m = h.match(/^plante\/(\d+)$/); if (m) return viewForm(Number(m[1]));
+    const m = h.match(/^plante\/([\w-]+)$/); if (m) return viewForm(/^\d+$/.test(m[1]) ? Number(m[1]) : m[1]);
     viewHome();
   }
 
   async function boot() {
     try {
       if (!state.me) state.me = await api('/session');
-      [state.config, { plantes: state.plantes }] = await Promise.all([api('/config'), api('/plantes')]);
-      route();
+      const [config, { plantes }] = await Promise.all([api('/config'), api('/plantes')]);
+      state.config = config; state.server = plantes; state.offline = false;
+      if (hasIDB) cPut({ me: state.me, config, plantes }).catch(() => {});
     } catch (e) {
       if (e.status === 401 || e.status === 403) { state.me = null; return viewLogin(e.status === 403 ? e.message : ''); }
-      app.innerHTML = `${banner()}<main class="min-h-screen flex flex-col items-center justify-center gap-5 p-8 text-center"><p class="font-display font-extrabold text-3xl">${esc(e.message)}</p><button class="min-h-14 px-8 rounded-full bg-leaf-900 text-white font-bold text-xl" onclick="location.reload()">Réessayer</button></main>`;
+      // Pas de réseau : on ouvre avec la dernière liste connue, l'agriculteur peut quand même saisir
+      const snap = isNetErr(e) && hasIDB ? await cGet().catch(() => null) : null;
+      if (!snap) {
+        app.innerHTML = `${banner()}<main class="min-h-screen flex flex-col items-center justify-center gap-5 p-8 text-center"><p class="font-display font-extrabold text-3xl">${esc(e.message)}</p><button class="min-h-14 px-8 rounded-full bg-leaf-900 text-white font-bold text-xl" onclick="location.reload()">Réessayer</button></main>`;
+        return;
+      }
+      Object.assign(state, { me: snap.v.me, config: snap.v.config, server: snap.v.plantes, offline: true, snapAt: snap.at });
     }
+    state.queue = hasIDB ? (await qAll().catch(() => [])).filter((q) => q.user === state.me.id) : [];
+    rebuild(); route(); flush();
   }
 
   window.addEventListener('hashchange', route);
-  window.addEventListener('online', () => state.me && route());
-  window.addEventListener('offline', () => state.me && route());
+  window.addEventListener('offline', () => { updateBanner(); refreshView(); });
+  window.addEventListener('online', async () => {
+    updateBanner(); if (!state.me) return;
+    await flush(); if (!state.queue.length) await refreshServer();
+    refreshView();
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) flush(); });
+  setInterval(() => { if (state.queue.length) flush(); }, 20000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/agriculteur/sw.js', { scope: '/agriculteur/' }).catch(() => {});
   boot();
 })();
