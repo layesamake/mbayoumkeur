@@ -194,6 +194,15 @@ function mbk_api_list() {
 }
 
 function mbk_api_create(WP_REST_Request $r) {
+  // Clé d'envoi : un renvoi après une coupure réseau (réponse perdue) ne doit jamais créer de doublon
+  $cle = substr(preg_replace('/[^A-Za-z0-9\-]/', '', (string) $r->get_param('cle')), 0, 64);
+  if ($cle !== '') {
+    $deja = get_posts([
+      'post_type' => MBK_CPT, 'author' => get_current_user_id(), 'post_status' => ['publish', 'draft', 'pending', 'private'],
+      'meta_key' => '_mbk_cle', 'meta_value' => $cle, 'posts_per_page' => 1,
+    ]);
+    if ($deja) return new WP_REST_Response(mbk_api_plante($deja[0]), 200);
+  }
   $f = mbk_api_fields($r);
   if (is_wp_error($f)) return $f;
   $status = $f['statut'] ?? 'draft';
@@ -203,6 +212,7 @@ function mbk_api_create(WP_REST_Request $r) {
   $id = wp_insert_post(['post_type' => MBK_CPT, 'post_status' => 'draft', 'post_title' => $f['titre'], 'post_content' => $f['description'] ?? '', 'post_author' => get_current_user_id()], true);
   if (is_wp_error($id)) return new WP_Error('mbk_serveur', 'Enregistrement impossible.', ['status' => 500]);
 
+  if ($cle !== '') update_post_meta($id, '_mbk_cle', $cle);
   $photo = mbk_api_photo($id);
   if (is_wp_error($photo)) { wp_delete_post($id, true); return $photo; }
   mbk_api_apply($id, $f);

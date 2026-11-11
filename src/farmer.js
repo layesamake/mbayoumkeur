@@ -83,7 +83,8 @@ const aiLimit = (id) => {
   list.push(now); aiUse.set(id, list);
 };
 
-const FIELDS = ['titre', 'categorie', 'prix', 'conditionnement', 'disponible', 'description', 'conseils', 'statut'];
+// « cle » : identifiant unique d'un envoi (création), pour qu'un renvoi après coupure réseau ne crée jamais de doublon
+const FIELDS = ['titre', 'categorie', 'prix', 'conditionnement', 'disponible', 'description', 'conseils', 'statut', 'cle'];
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 }, fileFilter: (req, file, cb) => (/^image\/(jpeg|png|webp)$/.test(file.mimetype) ? cb(null, true) : cb(new HttpError(415, 'Format de photo non accepté (JPEG, PNG ou WebP).', 'photo'))) });
 
 // Reconstitue le formulaire envoyé à WordPress : champs autorisés + photo
@@ -121,7 +122,7 @@ export function farmerRouter() {
     try {
       const out = await wp(null, 'POST', '/login', { json: { identifiant, motdepasse } });
       setSession(req, res, { u: out.identifiant, p: out.motdepasse_application, id: out.id, nom: out.nom });
-      res.json({ nom: out.nom });
+      res.json({ nom: out.nom, id: out.id });
     } catch (err) {
       if (err.status === 401 || err.status === 429) tries.set(ip, [...(tries.get(ip) || []), Date.now()]);
       throw err;
@@ -129,7 +130,7 @@ export function farmerRouter() {
   }));
 
   api.post('/logout', (req, res) => { res.clearCookie(COOKIE, { path: '/agriculteur' }); res.json({ ok: true }); });
-  api.get('/session', auth, (req, res) => res.json({ nom: req.sess.nom }));
+  api.get('/session', auth, (req, res) => res.json({ nom: req.sess.nom, id: req.sess.id }));
   api.get('/config', auth, wrap(async (req, res) => res.json({ ...(await wp(req.sess, 'GET', '/config')), ia: aiEnabled() })));
   // Description proposée par l'assistant : photo (facultative) + nom ; rien n'est enregistré, le client remplit le formulaire
   api.post('/ia/description', auth, upload.single('photo'), wrap(async (req, res) => {
