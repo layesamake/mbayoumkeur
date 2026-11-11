@@ -1,12 +1,11 @@
 <?php
 /**
- * Plugin Name: Mbayoumkeur – Optimisation des images
- * Description: Toute photo envoyée (téléphone d'un agriculteur, médiathèque, API) est redressée, réduite à 1600 px,
- *              convertie en WebP et débarrassée de ses métadonnées (position GPS comprise). Les tailles inutiles
- *              ne sont plus générées. Outil de rattrapage pour les images déjà en ligne : Outils › Optimiser les images
- *              ou `wp mbk-images optimize`.
+ * Mbayoumkeur – Optimisation des images (chargé par ../mbayoumkeur-agriculteurs.php).
+ * Toute photo envoyée (téléphone d'un agriculteur, médiathèque, API) est redressée, réduite à 1600 px,
+ * convertie en WebP et débarrassée de ses métadonnées (position GPS comprise). Les tailles inutiles
+ * ne sont plus générées. Outil de rattrapage pour les images déjà en ligne : Outils › Optimiser les images
+ * ou `wp mbk-images optimize`.
  *
- * À copier dans wp-content/mu-plugins/ du WordPress (cms.mbayoumkeur.shop).
  * Principe : une panne ici ne doit JAMAIS empêcher l'envoi d'une photo (tout est enveloppé, l'original est conservé en repli).
  */
 if (!defined('ABSPATH')) exit;
