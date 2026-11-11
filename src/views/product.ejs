@@ -2,9 +2,20 @@
 <div class="max-w-5xl mx-auto px-4 mt-8">
 <nav aria-label="Fil d’Ariane" class="text-sm text-slate-600"><a href="/boutique" class="hover:underline">Boutique</a> <span aria-hidden="true">›</span> <a class="hover:underline" href="/boutique?categorie=<%= encodeURIComponent(p.category) %>"><%= p.category %></a></nav>
 <div class="grid md:grid-cols-2 gap-8 mt-4">
+<div>
 <div class="rounded-2xl w-full bg-leaf-50 aspect-square overflow-hidden flex items-center justify-center text-8xl">
-<% if (p.image) { %><img src="<%= p.image %>"<% if (p.srcset) { %> srcset="<%= p.srcset %>" sizes="(min-width:768px) 40vw, 92vw"<% } %> fetchpriority="high" decoding="async" alt="<%= p.name %>" class="w-full h-full object-cover"><% } else { %><span aria-hidden="true">🪴</span><% } %></div>
+<% if (p.image) { %><img id="gallery-main" src="<%= p.image %>"<% if (p.srcset) { %> srcset="<%= p.srcset %>" sizes="(min-width:768px) 40vw, 92vw"<% } %> fetchpriority="high" decoding="async" alt="<%= p.name %>" class="w-full h-full object-cover"><% } else { %><span aria-hidden="true">🪴</span><% } %></div>
+<% if (p.image && p.gallery && p.gallery.length) { %>
+<ul class="mt-3 grid grid-cols-5 gap-2" aria-label="Autres photos de <%= p.name %>">
+  <li><button type="button" data-thumb data-src="<%= p.image %>" data-srcset="<%= p.srcset || '' %>" aria-label="Photo principale" aria-pressed="true" class="block w-full aspect-square rounded-xl overflow-hidden border-2 border-leaf-600 aria-[pressed=false]:border-transparent"><img src="<%= p.image %>" alt="" loading="lazy" class="w-full h-full object-cover"></button></li>
+  <% p.gallery.forEach((g, i) => { %>
+  <li><button type="button" data-thumb data-src="<%= g.src %>" data-srcset="<%= g.srcset || '' %>" aria-label="Photo <%= i + 2 %> sur <%= p.gallery.length + 1 %>" aria-pressed="false" class="block w-full aspect-square rounded-xl overflow-hidden border-2 border-leaf-600 aria-[pressed=false]:border-transparent"><img src="<%= g.src %>" alt="" loading="lazy" class="w-full h-full object-cover"></button></li>
+  <% }) %>
+</ul>
+<% } %>
+</div>
 <div><h1 class="text-3xl font-bold text-leaf-900"><%= p.name %></h1><p class="text-leaf-600 mt-1"><%= p.category %></p>
+<% if (p.localName) { %><p class="mt-1 text-slate-700">Nom local (wolof) : <strong><%= p.localName %></strong></p><% } %>
 <% if (p.ref) { %><p class="text-xs text-slate-600 mt-1">Réf. <%= p.ref %></p><% } %>
 <p class="text-2xl mt-4 font-semibold"><%= p.price ? fcfa(p.price) : 'Prix sur demande' %><% if (p.price && p.unit) { %><span class="text-base font-normal text-slate-600"> / <%= p.unit %></span><% } %></p>
 <div class="mt-5 text-slate-600 leading-relaxed [&_p]:mb-3"><%- p.html %></div>

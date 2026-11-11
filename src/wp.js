@@ -96,6 +96,8 @@ function toPlante(post) {
     ...pickImage(media),
     excerpt: strip(a.conseils_entretien || post.excerpt?.rendered),
     html: post.content?.rendered || '',
+    localName: strip(post.nom_local || ''),
+    gallery: (Array.isArray(post.galerie) ? post.galerie : []).filter((g) => g?.src).slice(0, 4), // photos supplémentaires (5 photos au maximum avec la principale)
     price: Number(a.prix_unitaire) || 0,
     unit: UNITS[a.conditionnement] || a.conditionnement || '',
     available: a.disponible !== false && a.disponible !== 0,

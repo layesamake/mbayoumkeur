@@ -46,6 +46,37 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
+/* ---------------- Identification d'une plante sur photo (façon Google Lens) ---------------- */
+const ID_SYSTEM = `Tu identifies des plantes sur des photos prises par des agriculteurs et pépiniéristes du Sénégal : arbres fruitiers, légumes, plantes aromatiques, fleurs, jeunes plants en sachet ou en pot.
+
+Tu proposes jusqu'à 3 plantes possibles, de la plus probable à la moins probable :
+- nom : le nom courant en français, tel qu'on le vend et le cherche en boutique (« Manguier », « Papayer », « Piment », « Menthe »). N'ajoute une variété que si elle est vraiment reconnaissable sur la photo.
+- nom_scientifique : le nom latin (genre et espèce), ou vide si tu ne le connais pas avec certitude.
+- confiance : « forte » seulement si les traits visibles sont caractéristiques ; « moyenne » ou « faible » sinon. Sois honnête : un jeune plant sans fleur ni fruit se confond facilement.
+
+Si la photo n'est pas une plante, est trop floue, trop sombre ou trop éloignée, renvoie une liste vide et explique en une phrase dans remarque (par exemple : rapprochez-vous des feuilles). La remarque est vide quand tu proposes des plantes sans réserve particulière. Réponds en français.`;
+
+const ID_SCHEMA = {
+  type: 'object',
+  properties: {
+    suggestions: {
+      type: 'array', maxItems: 3,
+      items: {
+        type: 'object',
+        properties: {
+          nom: { type: 'string' }, nom_scientifique: { type: 'string' },
+          confiance: { type: 'string', enum: ['forte', 'moyenne', 'faible'] },
+        },
+        required: ['nom', 'nom_scientifique', 'confiance'],
+        additionalProperties: false,
+      },
+    },
+    remarque: { type: 'string' },
+  },
+  required: ['suggestions', 'remarque'],
+  additionalProperties: false,
+};
+
 const userText = ({ image, titre, categorie, conditionnement }) =>
   `Nom donné par l'agriculteur : « ${titre} »\nCatégorie : ${categorie || 'non précisée'}\nConditionnement : ${conditionnement || 'non précisé'}\n${image ? 'Une photo est jointe.' : 'Pas de photo : décris la plante d’après son nom seulement, et dis-le dans la remarque.'}`;
 
@@ -63,11 +94,11 @@ const ERREUR = () => new AiError(502, 'L’assistant n’a pas pu répondre. Ré
 const GEMINI_MODELS = (process.env.GEMINI_MODELS || 'gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-3.6-flash').split(',').map((m) => m.trim()).filter(Boolean);
 let gem;
 
-async function viaGemini(input) {
+async function viaGemini(req) {
   gem ??= new GoogleGenAI({ apiKey: geminiKey(), httpOptions: { apiVersion: 'v1beta', ...(process.env.GEMINI_BASE_URL ? { baseUrl: process.env.GEMINI_BASE_URL } : {}) } });
   const parts = [];
-  if (input.image) parts.push({ inlineData: { mimeType: input.mime, data: input.image.toString('base64') } });
-  parts.push({ text: userText(input) });
+  if (req.image) parts.push({ inlineData: { mimeType: req.mime, data: req.image.toString('base64') } });
+  parts.push({ text: req.text });
 
   let last;
   for (const model of GEMINI_MODELS) {
@@ -75,11 +106,11 @@ async function viaGemini(input) {
       const res = await gem.models.generateContent({
         model,
         contents: [{ role: 'user', parts }],
-        config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', responseJsonSchema: SCHEMA, maxOutputTokens: 2000 },
+        config: { systemInstruction: req.system, responseMimeType: 'application/json', responseJsonSchema: req.schema, maxOutputTokens: 2000 },
       });
-      if (res.promptFeedback?.blockReason) throw REFUS();
+      if (res.promptFeedback?.blockReason) throw req.refus();
       const text = res.text;
-      if (!text) { const fr = res.candidates?.[0]?.finishReason; if (fr && fr !== 'STOP') throw REFUS(); throw ERREUR(); }
+      if (!text) { const fr = res.candidates?.[0]?.finishReason; if (fr && fr !== 'STOP') throw req.refus(); throw ERREUR(); }
       return text;
     } catch (err) {
       if (err instanceof AiError) throw err;
@@ -96,31 +127,30 @@ const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
 const CLAUDE_FALLBACKS = /^claude-(opus-5-5|sonnet-5-5|fable-5)/.test(CLAUDE_MODEL); // reprise automatique en cas de refus
 let claude;
 
-async function viaClaude(input) {
+async function viaClaude(req) {
   claude ??= new Anthropic({ maxRetries: 1, timeout: 60000 });
   const content = [];
-  if (input.image) content.push({ type: 'image', source: { type: 'base64', media_type: input.mime, data: input.image.toString('base64') } });
-  content.push({ type: 'text', text: userText(input) });
+  if (req.image) content.push({ type: 'image', source: { type: 'base64', media_type: req.mime, data: req.image.toString('base64') } });
+  content.push({ type: 'text', text: req.text });
   const res = await claude.beta.messages.create({
     model: CLAUDE_MODEL,
     max_tokens: 4000,
     ...(CLAUDE_FALLBACKS ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {}),
-    system: SYSTEM,
-    output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
+    system: req.system,
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: req.schema } },
     messages: [{ role: 'user', content }],
   });
-  if (res.stop_reason === 'refusal') throw REFUS();
+  if (res.stop_reason === 'refusal') throw req.refus();
   return res.content.find((b) => b.type === 'text')?.text;
 }
 
-/* ---------------- Point d'entrée ---------------- */
-export async function describePlant(input) {
+/* ---------------- Point d'entrée commun : un appel, une réponse JSON ---------------- */
+async function generate(req) {
   const which = provider();
-  if (!which) throw new AiError(503, 'L’assistant n’est pas disponible pour le moment. Rédigez la description vous-même.', 'ia_indisponible');
-
+  if (!which) throw new AiError(503, 'L’assistant n’est pas disponible pour le moment. Rédigez les champs vous-même.', 'ia_indisponible');
   let text;
   try {
-    text = await (which === 'gemini' ? viaGemini(input) : viaClaude(input));
+    text = await (which === 'gemini' ? viaGemini(req) : viaClaude(req));
   } catch (err) {
     if (err instanceof AiError) throw err;
     const status = err?.status;
@@ -129,9 +159,28 @@ export async function describePlant(input) {
     console.error('Assistant IA (' + which + ') :', status ? `${status} ${err.message}` : err);
     throw ERREUR();
   }
-
   let out;
   try { out = JSON.parse(text); } catch { out = null; }
-  if (!out || typeof out.description !== 'string') throw new AiError(502, 'La proposition est illisible. Réessayez.', 'ia_format');
+  if (!out || typeof out !== 'object') throw new AiError(502, 'La proposition est illisible. Réessayez.', 'ia_format');
+  return out;
+}
+
+export async function describePlant(input) {
+  const out = await generate({ system: SYSTEM, schema: SCHEMA, text: userText(input), image: input.image, mime: input.mime, refus: REFUS });
+  if (typeof out.description !== 'string') throw new AiError(502, 'La proposition est illisible. Réessayez.', 'ia_format');
   return { description: clip(out.description, 600), conseils: clip(out.conseils, 600), remarque: clip(out.remarque, 240) };
+}
+
+// Identification façon Google Lens : jusqu'à 3 noms de plantes possibles, à confirmer par l'agriculteur.
+// Pas de nom wolof demandé au modèle : testé, il en invente (« ceebujën », le plat national, pour le basilic) ; le nom local reste saisi par l'agriculteur.
+export async function identifyPlant({ image, mime }) {
+  const out = await generate({
+    system: ID_SYSTEM, schema: ID_SCHEMA, text: 'Identifie la plante de cette photo.', image, mime,
+    refus: () => new AiError(422, 'L’assistant n’a pas pu identifier cette photo. Saisissez le nom vous-même.', 'ia_refus'),
+  });
+  const suggestions = (Array.isArray(out.suggestions) ? out.suggestions : []).slice(0, 3).map((x) => ({
+    nom: clip(x?.nom, 80), nom_scientifique: clip(x?.nom_scientifique, 100),
+    confiance: ['forte', 'moyenne', 'faible'].includes(x?.confiance) ? x.confiance : 'faible',
+  })).filter((x) => x.nom);
+  return { suggestions, remarque: clip(out.remarque, 240) };
 }
