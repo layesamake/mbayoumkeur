@@ -110,7 +110,9 @@ function mbk_img_render_gd(string $src, string $dst, string $mime, bool $webp) {
   $w = imagesx($img); $h = imagesy($img);
   if (max($w, $h) > MBK_IMG_MAX) {
     $k = MBK_IMG_MAX / max($w, $h);
-    $r = imagescale($img, max(1, (int) round($w * $k)), max(1, (int) round($h * $k)), IMG_BICUBIC);
+    $nw = max(1, (int) round($w * $k)); $nh = max(1, (int) round($h * $k));
+    // certaines versions de GD refusent IMG_BICUBIC : on retombe alors sur le mode par défaut (trouvé en exécutant le code pour de vrai)
+    $r = @imagescale($img, $nw, $nh, IMG_BICUBIC) ?: @imagescale($img, $nw, $nh);
     if ($r) $img = $r;
   }
   imagepalettetotruecolor($img);
