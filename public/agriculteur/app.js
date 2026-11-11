@@ -114,6 +114,7 @@
     camera: (c = 'w-8 h-8') => `<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.4h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.8"/></svg>`,
     spark: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9L12 2Zm7 12 .9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9L19 14ZM5 15l.7 2 2 .7-2 .7L5 20.4l-.7-2-2-.7 2-.7L5 15Z"/></svg>`,
     crop: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>`,
+    gallery: (c = 'w-6 h-6') => `<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m21 16-5-5-8 8"/></svg>`,
     mic: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5V22"/></svg>`,
     back: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>`,
     leaf: `<svg class="w-14 h-14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 2C9 2 3 6 3 12c0 1.5.5 2.8 1.3 3.8C5 12 8 9 12 7.5 8.5 9.5 6 12.5 5 17c.5.2 1 .3 1.5.3 6 0 10.5-5 10.5-11.5V2Z"/></svg>`,
@@ -605,7 +606,7 @@
     const f = state.form;
     const src = f.main ? shown(f.main) : f.photoUrl;
     const inputs = `<input id="cam" type="file" accept="image/*" capture="environment" class="sr-only"><input id="gal" type="file" accept="image/*" class="sr-only">`;
-    const btn = 'flex items-center justify-center gap-2 min-h-14 rounded-2xl border-2 border-leaf-900 font-bold text-lg active:bg-leaf-100 cursor-pointer';
+    const btn = 'flex flex-col items-center justify-center gap-1.5 min-h-20 px-1 py-3 rounded-2xl border-2 border-leaf-900 bg-white font-bold text-base leading-tight text-center active:bg-leaf-100 cursor-pointer';
     if (f.busy) return `<div class="flex items-center justify-center min-h-56 rounded-3xl bg-white border-2 border-leaf-100 font-display font-bold text-2xl" role="status">Préparation de la photo…</div>${inputs}`;
     if (!src) return `
       <label for="cam" id="f-photo" tabindex="-1" class="flex flex-col items-center justify-center gap-3 min-h-56 rounded-3xl border-4 border-dashed border-leaf-600 bg-white text-leaf-700 font-display font-extrabold text-2xl text-center p-6 cursor-pointer active:bg-leaf-100">${ICON.camera('w-16 h-16')}Prendre une photo</label>
@@ -613,7 +614,7 @@
     return `
       <div class="relative rounded-3xl overflow-hidden bg-leaf-50 aspect-[4/3] border-2 border-leaf-100">${remoteImg(src, 'w-full h-full object-contain', 'Photo de la plante')}</div>
       ${f.main ? `<p class="mt-2 text-slate-700">${f.main.crop ? (hasAdj(f.main.crop.adj) ? 'Photo retouchée. ' : 'Photo recadrée. ') : ''}Elle est préparée automatiquement quand vous publiez.</p>` : ''}
-      <div class="mt-3 grid grid-cols-3 gap-3">${f.main ? `<button type="button" data-act="crop" class="${btn}">${ICON.crop}Retoucher</button>` : `<button type="button" data-act="edit-main" class="${btn}">${ICON.crop}Retoucher</button>`}<label for="cam" class="${btn}">${ICON.camera('w-6 h-6')}Reprendre</label><label for="gal" class="${btn}">Galerie</label></div>${inputs}`;
+      <div class="mt-3 grid grid-cols-3 gap-3">${f.main ? `<button type="button" data-act="crop" class="${btn}">${ICON.crop}<span>Retoucher</span></button>` : `<button type="button" data-act="edit-main" class="${btn}">${ICON.crop}<span>Retoucher</span></button>`}<label for="cam" class="${btn}">${ICON.camera('w-6 h-6')}<span>Reprendre</span></label><label for="gal" class="${btn}">${ICON.gallery()}<span>Galerie</span></label></div>${inputs}`;
   }
 
   /* ----- Doublons : même nom (sans accents, majuscules ni pluriel) dans la même catégorie, parmi MES plantes ----- */
@@ -708,7 +709,7 @@
     if (f.xbusy) return `<p role="status" class="rounded-2xl bg-white border-2 border-leaf-100 px-4 py-6 text-center font-display font-bold text-xl">Préparation des photos…</p>${inputs}`;
     return `<div class="grid grid-cols-3 gap-3">
       ${f.gallery.map((g) => thumb(g.url, 'gal:' + g.id, null, g.id)).join('')}${f.extras.map((x, i) => thumb(shown(x), 'new:' + i, i)).join('')}
-      ${slots > 0 ? `<label for="xcam" class="${tile}">${ICON.camera('w-8 h-8')}<span class="text-base">Photo</span></label><label for="xgal" class="${tile}"><span class="text-base">Galerie</span></label>` : ''}
+      ${slots > 0 ? `<label for="xcam" class="${tile}">${ICON.camera('w-8 h-8')}<span class="text-base">Photo</span></label><label for="xgal" class="${tile}">${ICON.gallery('w-8 h-8')}<span class="text-base">Galerie</span></label>` : ''}
     </div>${inputs}`;
   }
   const renderExtras = () => { const el = $('#extras'); if (el) el.innerHTML = extrasBlock(); };
