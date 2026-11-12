@@ -22,7 +22,7 @@
     <nav aria-label="Pied de page" class="md:col-span-2">
       <h2 class="font-display font-bold text-lg text-white">Explorer</h2>
       <ul class="mt-2">
-        <% [['/boutique','Boutique'],['/ma-selection','Ma sélection'],['/notre-histoire','Notre histoire'],['/faq','FAQ'],['/nous-contacter','Contact'],['/agriculteur','Espace agriculteurs']].forEach(([href, label]) => { const farmer = href === '/agriculteur'; %>
+        <% [['/boutique','Boutique'],['/ma-selection','Ma sélection'],['/notre-histoire','Notre histoire'],['/conseils','Conseils d’entretien'],['/faq','FAQ'],['/nous-contacter','Contact'],['/agriculteur','Espace agriculteurs']].forEach(([href, label]) => { const farmer = href === '/agriculteur'; %>
         <li><a href="<%= href %>" <%- cur(href) %><%- farmer ? ' rel="nofollow"' : '' %> class="inline-flex items-center min-h-11 hover:underline underline-offset-4 aria-[current=page]:text-white aria-[current=page]:font-semibold <%= farmer ? 'text-sun-soft font-semibold' : '' %>"><%= label %></a></li>
         <% }) %>
       </ul>

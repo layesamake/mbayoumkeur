@@ -97,6 +97,8 @@ function toPlante(post) {
     excerpt: strip(a.conseils_entretien || post.excerpt?.rendered),
     html: post.content?.rendered || '',
     localName: strip(post.nom_local || ''),
+    scientific: strip(a.nom_scientifique || ''),
+    conseils: String(a.conseils_entretien || '').replace(/\r/g, '').replace(/<[^>]+>/g, '').trim(), // texte brut, paragraphes séparés par des retours à la ligne
     gallery: (Array.isArray(post.galerie) ? post.galerie : []).filter((g) => g?.src).slice(0, 4), // photos supplémentaires (5 photos au maximum avec la principale)
     price: Number(a.prix_unitaire) || 0,
     unit: UNITS[a.conditionnement] || a.conditionnement || '',

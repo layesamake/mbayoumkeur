@@ -37,7 +37,7 @@ export function faqGroups(shops = []) {
       id: 'plantes', titre: 'Les plantes',
       items: [
         ['Comment choisir et entretenir mes plantes ?',
-          'Les fiches produit indiquent, quand l’information est disponible, l’exposition, le sol, l’arrosage et des conseils d’entretien. Pour un conseil adapté à votre situation (pot, balcon, jardin, terrain), écrivez-nous sur WhatsApp.'],
+          'Les fiches produit donnent, quand l’information est disponible, les conseils d’entretien de la plante, et la page « Conseils d’entretien » rassemble les gestes essentiels (arrosage, soleil, sol, plantation). Pour un conseil adapté à votre situation (pot, balcon, jardin, terrain), écrivez-nous sur WhatsApp.'],
         ['Une plante est marquée « Indisponible », que faire ?',
           'Elle n’est pas en stock pour le moment. Écrivez-nous sur WhatsApp pour savoir si elle revient bientôt ou pour demander une autre plante.'],
         ['Les photos correspondent-elles exactement aux plants livrés ?',
