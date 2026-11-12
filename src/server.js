@@ -5,6 +5,7 @@ import { getCatalog } from './wp.js';
 import { shopView } from './shop.js';
 import { farmerRouter } from './farmer.js';
 import { faqGroups, faqJsonLd } from './faq.js';
+import { GESTES } from './conseils.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_NAME = process.env.SITE_NAME || 'Mbayoumkeur';
@@ -66,6 +67,13 @@ app.get('/ma-selection', (req, res) => res.render('cart'));
 app.get('/notre-histoire', (req, res) => res.render('about'));
 app.get('/nous-contacter', (req, res) => res.render('contact'));
 app.get('/faq', (req, res) => { const groups = faqGroups(SHOPS); res.render('faq', { groups, jsonLd: faqJsonLd(groups) }); });
+app.get('/conseils', (req, res) => {
+  // conseils propres à chaque plante (champ « conseils d'entretien » de sa fiche), regroupés par univers
+  const avec = req.products.filter((p) => p.conseils);
+  const parUnivers = [...new Set(avec.map((p) => p.category))].map((name) => ({ name, plantes: avec.filter((p) => p.category === name) }));
+  res.render('conseils', { gestes: GESTES, parUnivers, nbPlantes: avec.length });
+});
+app.get(['/conseils-entretien', '/entretien'], (req, res) => res.redirect(301, '/conseils'));
 app.get(['/questions-frequentes', '/foire-aux-questions'], (req, res) => res.redirect(301, '/faq'));
 app.get('/health', (req, res) => res.send('ok'));
 app.use((req, res) => res.status(404).render('404'));

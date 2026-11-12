@@ -77,6 +77,10 @@ Les polices sont **embarquées** dans `public/fonts/` (aucune requête vers Goog
 
 La page **`/faq`** (« Questions fréquentes ») regroupe 14 questions en 4 rubriques (Commander, Paiement et livraison, Les plantes, Producteurs partenaires), en accordéons natifs `<details>` (accessibles au clavier et sans JavaScript). Le contenu est dans `src/faq.js` : modifier une question ou une réponse se fait là, et la page comme les données structurées `FAQPage` (schema.org, pour les moteurs de recherche) suivent. Les réponses ne décrivent que ce que le site fait (commande par WhatsApp, sans paiement en ligne, livraison organisée après validation) : frais, délais et zones de livraison ne sont pas annoncés, ils sont confirmés par le point de vente ; **à compléter dès que ces règles sont fixées**. Liens vers la FAQ : menu du site (ordinateur), pied de page, page Contact et étape « Commander en trois étapes » de l'accueil. `/questions-frequentes` redirige vers `/faq`.
 
+## 1 sexies. Conseils d'entretien
+
+La page **`/conseils`** réunit (1) sept **gestes essentiels** (arroser, soleil et chaleur, sol et terreau, planter, cultiver en pot, à la livraison, surveiller la santé), des repères généraux adaptés à un climat chaud et sec, écrits dans `src/conseils.js` (à relire et à adapter à vos pratiques) ; (2) les **conseils de chaque plante**, repris du champ « conseils d'entretien » de sa fiche WordPress (le même que celui saisi par l'agriculteur dans l'application), regroupés par univers en accordéons avec un lien vers la fiche. Cette seconde partie n'apparaît que si au moins une plante a des conseils. Sur la **fiche produit**, un encadré « Conseils d'entretien » affiche ces mêmes conseils (retours à la ligne = paragraphes) et le nom scientifique est montré sous le nom de la plante. Liens : menu du site (ordinateur), pied de page et FAQ ; `/conseils-entretien` et `/entretien` redirigent vers `/conseils`.
+
 ## 2. Lancer en local
 
 ```bash
