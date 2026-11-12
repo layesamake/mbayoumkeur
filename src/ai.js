@@ -52,6 +52,7 @@ const ID_SYSTEM = `Tu identifies des plantes sur des photos prises par des agric
 Tu proposes jusqu'à 3 plantes possibles, de la plus probable à la moins probable :
 - nom : le nom courant en français, tel qu'on le vend et le cherche en boutique (« Manguier », « Papayer », « Piment », « Menthe »). N'ajoute une variété que si elle est vraiment reconnaissable sur la photo.
 - nom_scientifique : le nom latin (genre et espèce), ou vide si tu ne le connais pas avec certitude.
+- nom_wolof : le nom wolof de la plante, uniquement si tu le connais avec certitude et s'il est couramment utilisé au Sénégal pour cette plante. Sinon laisse vide : ne traduis pas, n'invente pas, ne donne jamais le nom d'un plat ou d'une autre plante. L'agriculteur le vérifiera.
 - confiance : « forte » seulement si les traits visibles sont caractéristiques ; « moyenne » ou « faible » sinon. Sois honnête : un jeune plant sans fleur ni fruit se confond facilement.
 
 Si la photo n'est pas une plante, est trop floue, trop sombre ou trop éloignée, renvoie une liste vide et explique en une phrase dans remarque (par exemple : rapprochez-vous des feuilles). La remarque est vide quand tu proposes des plantes sans réserve particulière. Réponds en français.`;
@@ -64,10 +65,10 @@ const ID_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          nom: { type: 'string' }, nom_scientifique: { type: 'string' },
+          nom: { type: 'string' }, nom_scientifique: { type: 'string' }, nom_wolof: { type: 'string' },
           confiance: { type: 'string', enum: ['forte', 'moyenne', 'faible'] },
         },
-        required: ['nom', 'nom_scientifique', 'confiance'],
+        required: ['nom', 'nom_scientifique', 'nom_wolof', 'confiance'],
         additionalProperties: false,
       },
     },
@@ -172,14 +173,15 @@ export async function describePlant(input) {
 }
 
 // Identification façon Google Lens : jusqu'à 3 noms de plantes possibles, à confirmer par l'agriculteur.
-// Pas de nom wolof demandé au modèle : testé, il en invente (« ceebujën », le plat national, pour le basilic) ; le nom local reste saisi par l'agriculteur.
+// Le nom wolof est facultatif et peu fiable (testé : le modèle a donné « ceebujën », un plat, pour le basilic) :
+// il n'est jamais enregistré sans que l'agriculteur le valide dans l'application.
 export async function identifyPlant({ image, mime }) {
   const out = await generate({
     system: ID_SYSTEM, schema: ID_SCHEMA, text: 'Identifie la plante de cette photo.', image, mime,
     refus: () => new AiError(422, 'L’assistant n’a pas pu identifier cette photo. Saisissez le nom vous-même.', 'ia_refus'),
   });
   const suggestions = (Array.isArray(out.suggestions) ? out.suggestions : []).slice(0, 3).map((x) => ({
-    nom: clip(x?.nom, 80), nom_scientifique: clip(x?.nom_scientifique, 100),
+    nom: clip(x?.nom, 80), nom_scientifique: clip(x?.nom_scientifique, 100), nom_wolof: clip(x?.nom_wolof, 80),
     confiance: ['forte', 'moyenne', 'faible'].includes(x?.confiance) ? x.confiance : 'faible',
   })).filter((x) => x.nom);
   return { suggestions, remarque: clip(out.remarque, 240) };

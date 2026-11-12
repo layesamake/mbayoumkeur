@@ -668,12 +668,36 @@
           <li><button type="button" data-pick="${i}" aria-pressed="${st.picked === i}" class="w-full text-left rounded-2xl border-2 px-4 py-3 min-h-16 ${st.picked === i ? 'bg-leaf-900 text-white border-leaf-900' : 'bg-white border-leaf-600'}">
             <span class="flex items-center justify-between gap-3"><span class="font-display font-extrabold text-2xl">${esc(x.nom)}</span><span class="shrink-0 text-sm font-bold rounded-full px-2.5 py-0.5 ${st.picked === i ? 'bg-white text-leaf-900' : 'bg-leaf-100 text-leaf-900'}">${CONF[x.confiance] || 'Possible'}</span></span>
             ${x.nom_scientifique ? `<span class="block text-base italic ${st.picked === i ? 'text-leaf-100' : 'text-slate-700'}">${esc(x.nom_scientifique)}</span>` : ''}
+            ${x.nom_wolof ? `<span class="block text-base ${st.picked === i ? 'text-leaf-100' : 'text-slate-700'}">En wolof : <strong>${esc(x.nom_wolof)}</strong> (à vérifier)</span>` : ''}
           </button></li>`).join('')}</ul>
-        <p class="mt-2 text-base text-slate-700">Suggestion de l’assistant : touchez le bon nom, ou saisissez-le vous-même ci-dessous.</p>`
+        ${wolofBlock(st)}
+        <p class="mt-2 text-base text-slate-700">${st.picked == null ? 'Suggestion de l’assistant : touchez le bon nom, ou saisissez-le vous-même ci-dessous.' : 'Nom validé et rempli ci-dessous. Vous pouvez le modifier.'}</p>`
         : `<p class="font-semibold">Pas de suggestion pour cette photo.</p>`;
       return `${list}${st.remarque ? `<p role="status" class="mt-3 rounded-2xl bg-sun-soft px-4 py-3 font-semibold">${esc(st.remarque)}</p>` : ''}<div class="mt-3">${btn('Identifier à nouveau')}</div>`;
     }
     return `${btn('Identifier la plante')}<p class="mt-2 text-base text-slate-700">Une photo nette des feuilles aide l’assistant à trouver le nom.</p>`;
+  }
+  // Le nom wolof proposé par l'assistant n'est enregistré que si l'agriculteur le valide
+  function wolofBlock(st) {
+    const x = st.picked != null ? st.suggestions[st.picked] : null;
+    if (!x?.nom_wolof) return '';
+    if (st.wolof === 'ok') return `<p role="status" class="mt-3 rounded-2xl bg-leaf-100 px-4 py-3 font-semibold">Nom wolof « ${esc(x.nom_wolof)} » validé et rempli ci-dessous.</p>`;
+    if (st.wolof === 'no') return '';
+    return `<div class="mt-3 rounded-2xl border-2 border-sun bg-sun-soft/40 p-4">
+      <p class="font-display font-bold text-xl">Nom wolof proposé : « ${esc(x.nom_wolof)} »</p>
+      <p class="mt-1 text-base text-slate-700">L’assistant peut se tromper sur les noms wolof. Est-ce le bon nom&nbsp;?</p>
+      <div class="mt-3 grid grid-cols-2 gap-3">
+        <button type="button" data-wolof="ok" class="min-h-14 rounded-full bg-leaf-900 text-white font-display font-bold text-lg">Oui, valider</button>
+        <button type="button" data-wolof="no" class="min-h-14 rounded-full border-2 border-leaf-900 bg-white text-leaf-900 font-display font-bold text-lg">Non</button>
+      </div></div>`;
+  }
+  function answerWolof(ok) {
+    const f = state.form, st = f.ident, x = st?.suggestions?.[st.picked]; if (!x?.nom_wolof) return;
+    if (ok) {
+      if (f.nom_local.trim() && f.nom_local.trim() !== x.nom_wolof && !confirm(`Remplacer « ${f.nom_local.trim()} » par « ${x.nom_wolof} » ?`)) return;
+      f.nom_local = x.nom_wolof; $('#f-local').value = x.nom_wolof;
+    }
+    st.wolof = ok ? 'ok' : 'no'; renderIdent();
   }
   const renderIdent = () => { const el = $('#ident'); if (el) el.innerHTML = identBlock(); };
 
@@ -695,7 +719,7 @@
   function pickSuggestion(i) {
     const f = state.form, x = f.ident?.suggestions?.[i]; if (!x) return;
     if (f.titre.trim() && f.titre.trim() !== x.nom && !confirm(`Remplacer « ${f.titre.trim()} » par « ${x.nom} » ?`)) return;
-    f.titre = x.nom; $('#f-titre').value = x.nom; f.ident.picked = i; renderIdent(); updateDupHint();
+    f.titre = x.nom; $('#f-titre').value = x.nom; f.ident.picked = i; f.ident.wolof = undefined; renderIdent(); updateDupHint();
   }
 
   /* ----- Photos supplémentaires : la principale + 4 au maximum ----- */
@@ -846,6 +870,7 @@
       const eg = e.target.closest('[data-editgal]'); if (eg) editOnline('gal', Number(eg.dataset.editgal));
       const cr = e.target.closest('[data-crop]'); if (cr && f.extras[Number(cr.dataset.crop)]) cropPhoto(f.extras[Number(cr.dataset.crop)]);
       const pick = e.target.closest('[data-pick]'); if (pick) pickSuggestion(Number(pick.dataset.pick));
+      const wo = e.target.closest('[data-wolof]'); if (wo) answerWolof(wo.dataset.wolof === 'ok');
     });
     $('#ia')?.addEventListener('click', describe);
     updateDupHint();
