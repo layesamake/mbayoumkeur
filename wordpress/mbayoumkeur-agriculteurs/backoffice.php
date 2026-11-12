@@ -485,8 +485,8 @@ body.wp-admin{color:#1c2a17;line-height:1.5}
 .mbk-cats a{display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border-radius:8px;color:#1c2a17;text-decoration:none}
 .mbk-cats a:hover{background:#eef7de}
 .mbk-cats b{color:#04481a}
-.mbk-links{display:grid;gap:8px}
-.mbk-links .button{text-align:left;justify-content:flex-start}
+.mbk-links{display:flex;flex-wrap:wrap;gap:8px}
+.mbk-links .button{flex:0 0 auto;width:auto;margin:0;white-space:nowrap}
 #adminmenu .wp-menu-name,#adminmenu .wp-submenu a{white-space:nowrap}
 @media screen and (min-width:961px){
 body.wp-admin:not(.folded) #wpcontent,body.wp-admin:not(.folded) #wpfooter{margin-left:var(--mbk-menu-w,260px)}
