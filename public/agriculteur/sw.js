@@ -1,5 +1,5 @@
 // Service worker de l'espace agriculteur : l'application s'ouvre même sans réseau (l'écran ; les données viennent de la mémoire du téléphone).
-const CACHE = 'mbk-agri-v6';
+const CACHE = 'mbk-agri-v7';
 const PHOTOS = 'mbk-photos'; // photos des plantes (relayées par le serveur), gardées pour l'affichage hors connexion
 const SHELL = ['/agriculteur', '/agriculteur/app.js', '/agriculteur/manifest.webmanifest', '/agriculteur/icon-192.png', '/style.css', '/img/emblem.png',
   '/fonts/fraunces-latin.woff2', '/fonts/source-sans-3-400.woff2', '/fonts/source-sans-3-600.woff2', '/fonts/source-sans-3-700.woff2'];

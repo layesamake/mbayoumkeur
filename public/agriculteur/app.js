@@ -670,13 +670,52 @@
             ${x.nom_scientifique ? `<span class="block text-base italic ${st.picked === i ? 'text-leaf-100' : 'text-slate-700'}">${esc(x.nom_scientifique)}</span>` : ''}
             ${x.nom_wolof ? `<span class="block text-base ${st.picked === i ? 'text-leaf-100' : 'text-slate-700'}">En wolof : <strong>${esc(x.nom_wolof)}</strong> (à vérifier)</span>` : ''}
           </button></li>`).join('')}</ul>
-        ${wolofBlock(st)}
+        ${fillBlock(st)}${wolofBlock(st)}
         <p class="mt-2 text-base text-slate-700">${st.picked == null ? 'Suggestion de l’assistant : touchez le bon nom, ou saisissez-le vous-même ci-dessous.' : 'Nom validé et rempli ci-dessous. Vous pouvez le modifier.'}</p>`
         : `<p class="font-semibold">Pas de suggestion pour cette photo.</p>`;
       return `${list}${st.remarque ? `<p role="status" class="mt-3 rounded-2xl bg-sun-soft px-4 py-3 font-semibold">${esc(st.remarque)}</p>` : ''}<div class="mt-3">${btn('Identifier à nouveau')}</div>`;
     }
     return `${btn('Identifier la plante')}<p class="mt-2 text-base text-slate-700">Une photo nette des feuilles aide l’assistant à trouver le nom.</p>`;
   }
+  // Résumé de ce que le choix du nom a rempli tout seul, avec la possibilité de tout défaire
+  function fillBlock(st) {
+    const f = state.form, fl = st.fill; if (!fl) return '';
+    const cfg = state.config, cat = cfg.univers.find((u) => u.slug === f.categorie), unit = cfg.conditionnements.find((u) => u.valeur === f.conditionnement);
+    const row = (icon, t) => `<li class="flex gap-2"><span aria-hidden="true">${icon}</span><span>${t}</span></li>`;
+    const rows = [row('✅', `Nom : <strong>${esc(f.titre)}</strong>`)];
+    if (fl.filled.includes('categorie') && cat) rows.push(row('✅', `Catégorie : <strong>${esc(cat.label)}</strong>`));
+    if (fl.filled.includes('conditionnement') && unit) rows.push(row('✅', `Vendu en : <strong>${esc(unit.label)}</strong>`));
+    if (fl.busy) rows.push(row('⏳', 'L’assistant rédige la description et les conseils…'));
+    else if (fl.filled.includes('description')) rows.push(row('✅', 'Description' + (fl.filled.includes('conseils') ? ' et conseils d’entretien' : '') + ' rédigées'));
+    return `<div class="mt-3 rounded-2xl bg-leaf-50 border-2 border-leaf-600 p-4">
+      <p class="font-display font-bold text-xl">✨ Fiche préremplie</p>
+      <ul class="mt-2 space-y-1 text-lg" role="status">${rows.join('')}</ul>
+      <p class="mt-2 text-base text-slate-700">Relisez chaque champ, puis indiquez le prix.</p>
+      ${!fl.busy && fl.filled.length ? `<button type="button" data-act="undo-fill" class="mt-2 min-h-11 px-4 rounded-full border-2 border-leaf-900 bg-white text-leaf-900 font-bold">Annuler le préremplissage</button>` : ''}
+    </div>`;
+  }
+  function undoFill() {
+    const f = state.form, st = f.ident, fl = st?.fill; if (!fl) return;
+    const radios = (name, v) => document.querySelectorAll(`input[name="${name}"]`).forEach((r) => { r.checked = r.value === v; });
+    // on ne défait que ce que l'assistant a rempli et que l'agriculteur n'a pas retouché depuis
+    const same = (k) => fl.filled.includes(k) && f[k] === fl.vals[k];
+    if (same('categorie')) { f.categorie = fl.prev.categorie; radios('categorie', f.categorie); }
+    if (same('conditionnement')) { f.conditionnement = fl.prev.conditionnement; radios('conditionnement', f.conditionnement); }
+    if (same('description')) { f.description = fl.prev.description; $('#f-desc').value = f.description; }
+    if (same('conseils')) { f.conseils = fl.prev.conseils; $('#f-conseils').value = f.conseils; }
+    st.fill = null; renderIdent(); updateDupHint(); renderPriceHint();
+  }
+
+  // Prix habituel de ses autres plantes de la même catégorie (calculé sur ses propres fiches : l'assistant n'invente jamais de prix)
+  function renderPriceHint() {
+    const el = $('#prix-hint'), f = state.form; if (!el || !f) return;
+    const xs = f.prix || !f.categorie ? [] : state.plantes.filter((p) => p.id !== f.id && p.categorie === f.categorie && p.prix > 0).map((p) => p.prix).sort((a, b) => a - b);
+    const m = xs[Math.floor(xs.length / 2)];
+    el.classList.toggle('hidden', !xs.length);
+    el.innerHTML = xs.length ? `Vos ${xs.length === 1 ? 'autre plante' : xs.length + ' autres plantes'} de cette catégorie ${xs.length === 1 ? 'coûte' : 'coûtent'} en général <strong>${fcfa(m)} FCFA</strong>.
+      <button type="button" data-act="use-price" data-price="${m}" class="mt-2 block min-h-11 px-4 rounded-full border-2 border-leaf-900 bg-white text-leaf-900 font-bold">Mettre ${fcfa(m)} FCFA</button>` : '';
+  }
+
   // Le nom wolof proposé par l'assistant n'est enregistré que si l'agriculteur le valide
   function wolofBlock(st) {
     const x = st.picked != null ? st.suggestions[st.picked] : null;
@@ -708,6 +747,8 @@
     try {
       const light = await lightBlob(f.main);
       const fd = new FormData(); fd.append('photo', light, 'plante.' + ext(light));
+      fd.append('univers', JSON.stringify(state.config.univers.map((u) => [u.slug, u.label])));
+      fd.append('conditionnements', JSON.stringify(state.config.conditionnements.map((u) => [u.valeur, u.label])));
       const out = await upload('/ia/identifier', fd, () => {});
       f.ident = { status: 'done', suggestions: out.suggestions || [], remarque: out.remarque || '' };
     } catch (e) {
@@ -716,10 +757,27 @@
     }
     if (state.form === f) renderIdent();   // l'agriculteur a pu quitter l'écran entre-temps
   }
-  function pickSuggestion(i) {
-    const f = state.form, x = f.ident?.suggestions?.[i]; if (!x) return;
+  async function pickSuggestion(i) {
+    const f = state.form, st = f.ident, x = st?.suggestions?.[i]; if (!x) return;
     if (f.titre.trim() && f.titre.trim() !== x.nom && !confirm(`Remplacer « ${f.titre.trim()} » par « ${x.nom} » ?`)) return;
-    f.titre = x.nom; $('#f-titre').value = x.nom; f.ident.picked = i; f.ident.wolof = undefined; renderIdent(); updateDupHint();
+    f.titre = x.nom; $('#f-titre').value = x.nom; st.picked = i; st.wolof = undefined;
+    // Le nom validé remplit le reste de la fiche, sans écraser ce que l'agriculteur a déjà choisi ou écrit
+    const cfg = state.config, filled = [], prev = { categorie: f.categorie, conditionnement: f.conditionnement, description: f.description, conseils: f.conseils };
+    const radios = (name, v) => document.querySelectorAll(`input[name="${name}"]`).forEach((r) => { r.checked = r.value === v; });
+    if (!f.categorie && cfg.univers.some((u) => u.slug === x.categorie)) { f.categorie = x.categorie; radios('categorie', f.categorie); filled.push('categorie'); }
+    if (!f.conditionnement && cfg.conditionnements.some((u) => u.valeur === x.conditionnement)) { f.conditionnement = x.conditionnement; radios('conditionnement', f.conditionnement); filled.push('conditionnement'); }
+    const auto = cfg.ia && navigator.onLine && !f.description.trim();
+    st.fill = { prev, filled, busy: auto, vals: { categorie: f.categorie, conditionnement: f.conditionnement } };
+    renderIdent(); updateDupHint(); renderPriceHint();
+    if (!auto) return;
+    const conseilsAvant = f.conseils;
+    const out = await describe();
+    if (state.form !== f || f.ident !== st || st.picked !== i) return;   // l'agriculteur a changé de photo ou de choix entre-temps
+    if (out) {
+      st.fill.filled.push('description'); st.fill.vals.description = f.description;
+      if (f.conseils !== conseilsAvant) { st.fill.filled.push('conseils'); st.fill.vals.conseils = f.conseils; }
+    }
+    st.fill.busy = false; renderIdent();
   }
 
   /* ----- Photos supplémentaires : la principale + 4 au maximum ----- */
@@ -786,7 +844,8 @@
 
       <section><label for="f-prix" class="${lab}">Prix</label>
         <div class="flex items-center gap-3"><input id="f-prix" inputmode="numeric" pattern="[0-9]*" value="${esc(f.prix)}" maxlength="8" placeholder="1500" enterkeyhint="next" class="min-w-0 flex-1 h-16 rounded-2xl border-2 border-leaf-100 bg-white px-4 text-2xl font-display font-bold tabular-nums focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60"><span class="font-display font-bold text-xl">FCFA</span></div>
-        <p class="mt-1.5 text-slate-700 text-base">Laissez vide pour « prix sur demande ».</p></section>
+        <p class="mt-1.5 text-slate-700 text-base">Laissez vide pour « prix sur demande ».</p>
+        <p id="prix-hint" role="status" class="hidden mt-2 rounded-2xl bg-leaf-50 px-4 py-3 text-lg"></p></section>
 
       <section><h2 class="${lab}">Vendu en</h2>
         <div class="flex flex-wrap gap-2.5" role="radiogroup" aria-label="Conditionnement">${cfg.conditionnements.map((u) => pill('conditionnement', u.valeur, u.label, f.conditionnement === u.valeur)).join('')}</div></section>
@@ -835,9 +894,9 @@
     const f = state.form, form = $('#plant');
     const text = (id, key) => $(id).addEventListener('input', (e) => { f[key] = e.target.value; });
     text('#f-titre', 'titre'); $('#f-titre').addEventListener('input', updateDupHint); text('#f-local', 'nom_local'); text('#f-desc', 'description'); text('#f-conseils', 'conseils');
-    $('#f-prix').addEventListener('input', (e) => { e.target.value = f.prix = e.target.value.replace(/\D/g, ''); });
+    $('#f-prix').addEventListener('input', (e) => { e.target.value = f.prix = e.target.value.replace(/\D/g, ''); renderPriceHint(); });
     $('#f-dispo').addEventListener('change', (e) => { f.disponible = e.target.checked; });
-    form.addEventListener('change', (e) => { if (e.target.name === 'categorie') { f.categorie = e.target.value; updateDupHint(); } if (e.target.name === 'conditionnement') f.conditionnement = e.target.value; });
+    form.addEventListener('change', (e) => { if (e.target.name === 'categorie') { f.categorie = e.target.value; updateDupHint(); renderPriceHint(); } if (e.target.name === 'conditionnement') f.conditionnement = e.target.value; });
     // Les champs « photo » sont recréés avec le bloc : on écoute au niveau du formulaire
     form.addEventListener('change', async (e) => {
       if (e.target.id !== 'cam' && e.target.id !== 'gal') return;
@@ -871,9 +930,11 @@
       const cr = e.target.closest('[data-crop]'); if (cr && f.extras[Number(cr.dataset.crop)]) cropPhoto(f.extras[Number(cr.dataset.crop)]);
       const pick = e.target.closest('[data-pick]'); if (pick) pickSuggestion(Number(pick.dataset.pick));
       const wo = e.target.closest('[data-wolof]'); if (wo) answerWolof(wo.dataset.wolof === 'ok');
+      if (e.target.closest('[data-act="undo-fill"]')) undoFill();
+      const up = e.target.closest('[data-act="use-price"]'); if (up) { f.prix = up.dataset.price; $('#f-prix').value = f.prix; renderPriceHint(); }
     });
     $('#ia')?.addEventListener('click', describe);
-    updateDupHint();
+    updateDupHint(); renderPriceHint();
     document.querySelectorAll('[data-save]').forEach((b) => b.addEventListener('click', () => save(b.dataset.save)));
   }
 
@@ -979,9 +1040,11 @@
       note.textContent = 'Proposition de l’assistant : relisez-la et corrigez-la avant de publier.';
       if (out.remarque) { warn.textContent = out.remarque; warn.classList.remove('hidden'); }
       label.textContent = 'Proposer une autre description';
+      return out;
     } catch (e) {
       if (e.code === 'session') return sessionLost();
       note.textContent = e.message; label.textContent = 'Décrire avec l’assistant';
+      return null;
     } finally { btn.disabled = false; }
   }
 

@@ -159,7 +159,8 @@ export function farmerRouter() {
   api.post('/ia/identifier', auth, upload.single('photo'), wrap(async (req, res) => {
     if (!req.file) throw new HttpError(400, 'Prenez d’abord une photo de la plante.', 'champ');
     aiLimit(req.sess.id, 'identification');
-    res.json(await identifyPlant({ image: req.file.buffer, mime: req.file.mimetype }));
+    const list = (v) => { try { const a = JSON.parse(String(v || '[]')); return Array.isArray(a) ? a : []; } catch { return []; } };
+    res.json(await identifyPlant({ image: req.file.buffer, mime: req.file.mimetype, univers: list(req.body?.univers), conditionnements: list(req.body?.conditionnements) }));
   }));
   // Relais d'une photo déjà en ligne : le navigateur ne peut pas la relire lui-même (autre domaine, pas d'autorisation CORS) et
   // sans cela il ne pourrait pas la recadrer ni la retoucher. Seules les photos de la médiathèque du WordPress configuré passent.
