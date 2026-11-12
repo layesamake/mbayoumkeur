@@ -81,8 +81,9 @@ const CATEGORIES = {
   'arbres-fruitiers': 'Arbres fruitiers',
   'terreaux-et-substrat': 'Terreaux et substrat',
   'accessoires-de-jardinage': 'Accessoires de jardinage',
+  'produits-phyto': 'Produits phyto',
 };
-const UNITS = { alveole: 'alvéole', pot: 'pot', sachet: 'sachet', plant: 'plant', botte: 'botte' };
+const UNITS = { alveole: 'alvéole', pot: 'pot', sachet: 'sachet', plant: 'plant', botte: 'botte', flacon: 'flacon', bidon: 'bidon' };
 
 function toPlante(post) {
   const a = post.acf || {};
