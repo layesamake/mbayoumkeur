@@ -357,19 +357,19 @@ function mbk_brand_css(): string {
 body.wp-admin{background:#f2f9ea}
 a{color:#2b6403}a:hover{color:#04481a}
 #adminmenuback,#adminmenuwrap,#adminmenu{background:#04481a}
-#adminmenu a{color:#e1f1cd}
-#adminmenu div.wp-menu-image:before{color:#a8d5b3}
+#adminmenu a{color:#ffffff}
+#adminmenu div.wp-menu-image:before{color:#d6efc2}
 #adminmenu li.menu-top:hover,#adminmenu li.opensub>a.menu-top,#adminmenu li>a.menu-top:focus{background:#2b6403;color:#fff}
 #adminmenu li.menu-top:hover div.wp-menu-image:before,#adminmenu li.opensub>a.menu-top div.wp-menu-image:before{color:#fff}
 #adminmenu li.current a.menu-top,#adminmenu li.wp-has-current-submenu a.wp-has-current-submenu,#adminmenu li.wp-has-current-submenu.opensub a.wp-has-current-submenu{background:#3a7d04;color:#fff}
 #adminmenu li.wp-has-current-submenu div.wp-menu-image:before,#adminmenu li.current div.wp-menu-image:before{color:#fff}
 #adminmenu .wp-submenu,#adminmenu .wp-has-current-submenu .wp-submenu,#adminmenu a.wp-has-current-submenu:focus+.wp-submenu{background:#033514}
-#adminmenu .wp-submenu a{color:#c9e6cf}
-#adminmenu .wp-submenu a:hover,#adminmenu .wp-submenu a:focus,#adminmenu .wp-submenu li.current a{color:#f2a900}
+#adminmenu .wp-submenu a{color:#f1f9e6}
+#adminmenu .wp-submenu a:hover,#adminmenu .wp-submenu a:focus,#adminmenu .wp-submenu li.current a{color:#ffd24d}
 #adminmenu .wp-submenu .wp-submenu-head,#adminmenu .wp-has-current-submenu .wp-submenu .wp-submenu-head{background:#3a7d04;color:#fff}
 #adminmenu .mbk-count{display:inline-block;float:none;background:#3a7d04;color:#fff;border-radius:9px;padding:0 7px;font-size:11px;line-height:17px;margin-left:6px;vertical-align:middle}
 #adminmenu .wp-submenu li.current .mbk-count,#adminmenu .wp-submenu a:hover .mbk-count{background:#f2a900;color:#04481a}
-#collapse-button,#collapse-button:hover{color:#a8d5b3}
+#collapse-button,#collapse-button:hover{color:#d6efc2}
 #wpadminbar{background:#04481a}
 #wpadminbar .ab-item,#wpadminbar a.ab-item,#wpadminbar #adminbarsearch:before{color:#e1f1cd}
 #wpadminbar .ab-top-menu>li:hover>.ab-item,#wpadminbar .ab-top-menu>li.hover>.ab-item{background:#2b6403;color:#fff}
@@ -399,7 +399,7 @@ body.wp-admin{color:#1c2a17;line-height:1.5}
 #adminmenu li.current a.menu-top,#adminmenu li.wp-has-current-submenu a.wp-has-current-submenu{box-shadow:inset 4px 0 0 #f2a900}
 #adminmenu li.mbk-sep{height:auto;margin:16px 0 4px;padding:0}
 #adminmenu li.mbk-sep .separator{height:auto;min-height:0;margin:0;padding:0 16px;background:none}
-#adminmenu li.mbk-sep .separator:before{display:block;padding:8px 0 4px;border-top:1px solid rgba(225,241,205,.22);font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#f3d27a}
+#adminmenu li.mbk-sep .separator:before{display:block;padding:8px 0 4px;border-top:1px solid rgba(225,241,205,.22);font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#ffe08a}
 #adminmenu li.mbk-sep-boutique .separator:before{content:"Boutique"}
 #adminmenu li.mbk-sep-contenu .separator:before{content:"Contenu du site"}
 #adminmenu li.mbk-sep-gestion .separator:before{content:"Gestion"}
@@ -461,6 +461,12 @@ body.wp-admin{color:#1c2a17;line-height:1.5}
 .mbk-cats b{color:#04481a}
 .mbk-links{display:grid;gap:8px}
 .mbk-links .button{text-align:left;justify-content:flex-start}
+@media screen and (min-width:961px){
+body.wp-admin:not(.folded) #wpcontent,body.wp-admin:not(.folded) #wpfooter{margin-left:290px}
+body.wp-admin:not(.folded) #adminmenuback,body.wp-admin:not(.folded) #adminmenuwrap,body.wp-admin:not(.folded) #adminmenu{width:290px}
+body.wp-admin:not(.folded) #adminmenu .wp-not-current-submenu .wp-submenu{left:290px}
+body.wp-admin:not(.folded) #adminmenu .wp-submenu{min-width:240px}
+}
 CSS;
   if (mbk_is_farmer()) {
     // Profil simplifié : on ne garde que l'essentiel
