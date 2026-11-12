@@ -53,6 +53,8 @@ Tu proposes jusqu'à 3 plantes possibles, de la plus probable à la moins probab
 - nom : le nom courant en français, tel qu'on le vend et le cherche en boutique (« Manguier », « Papayer », « Piment », « Menthe »). N'ajoute une variété que si elle est vraiment reconnaissable sur la photo.
 - nom_scientifique : le nom latin (genre et espèce), ou vide si tu ne le connais pas avec certitude.
 - nom_wolof : le nom wolof de la plante, uniquement si tu le connais avec certitude et s'il est couramment utilisé au Sénégal pour cette plante. Sinon laisse vide : ne traduis pas, n'invente pas, ne donne jamais le nom d'un plat ou d'une autre plante. L'agriculteur le vérifiera.
+- categorie : le code de la catégorie la plus adaptée, choisi dans la liste fournie avec la photo (recopie-le exactement), ou vide si aucune ne convient.
+- conditionnement : comment cette plante est vendue d'après la photo, choisi dans la liste fournie : « plant » pour un jeune plant en sachet ou en terre, « pot » pour une plante en pot, « alveole » pour une alvéole de semis, « sachet » pour des graines ou un petit sachet, « botte » pour des tiges coupées. Vide si ce n'est pas clair.
 - confiance : « forte » seulement si les traits visibles sont caractéristiques ; « moyenne » ou « faible » sinon. Sois honnête : un jeune plant sans fleur ni fruit se confond facilement.
 
 Si la photo n'est pas une plante, est trop floue, trop sombre ou trop éloignée, renvoie une liste vide et explique en une phrase dans remarque (par exemple : rapprochez-vous des feuilles). La remarque est vide quand tu proposes des plantes sans réserve particulière. Réponds en français.`;
@@ -66,9 +68,10 @@ const ID_SCHEMA = {
         type: 'object',
         properties: {
           nom: { type: 'string' }, nom_scientifique: { type: 'string' }, nom_wolof: { type: 'string' },
+          categorie: { type: 'string' }, conditionnement: { type: 'string' },
           confiance: { type: 'string', enum: ['forte', 'moyenne', 'faible'] },
         },
-        required: ['nom', 'nom_scientifique', 'nom_wolof', 'confiance'],
+        required: ['nom', 'nom_scientifique', 'nom_wolof', 'categorie', 'conditionnement', 'confiance'],
         additionalProperties: false,
       },
     },
@@ -175,13 +178,23 @@ export async function describePlant(input) {
 // Identification façon Google Lens : jusqu'à 3 noms de plantes possibles, à confirmer par l'agriculteur.
 // Le nom wolof est facultatif et peu fiable (testé : le modèle a donné « ceebujën », un plat, pour le basilic) :
 // il n'est jamais enregistré sans que l'agriculteur le valide dans l'application.
-export async function identifyPlant({ image, mime }) {
+// « univers » et « conditionnements » : listes [code, libellé] envoyées par l'application (données saisies : jamais des instructions)
+const pairs = (list, n) => (Array.isArray(list) ? list : []).slice(0, n)
+  .map((x) => [String(x?.[0] ?? '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40), clip(x?.[1], 40)]).filter((x) => x[0]);
+
+export async function identifyPlant({ image, mime, univers = [], conditionnements = [] }) {
+  const cats = pairs(univers, 12), units = pairs(conditionnements, 10);
+  const text = 'Identifie la plante de cette photo.'
+    + (cats.length ? '\nCatégories possibles (code : libellé) :\n' + cats.map(([c, l]) => `- ${c} : ${l}`).join('\n') : '')
+    + (units.length ? '\nConditionnements possibles (code : libellé) :\n' + units.map(([c, l]) => `- ${c} : ${l}`).join('\n') : '');
   const out = await generate({
-    system: ID_SYSTEM, schema: ID_SCHEMA, text: 'Identifie la plante de cette photo.', image, mime,
+    system: ID_SYSTEM, schema: ID_SCHEMA, text, image, mime,
     refus: () => new AiError(422, 'L’assistant n’a pas pu identifier cette photo. Saisissez le nom vous-même.', 'ia_refus'),
   });
   const suggestions = (Array.isArray(out.suggestions) ? out.suggestions : []).slice(0, 3).map((x) => ({
     nom: clip(x?.nom, 80), nom_scientifique: clip(x?.nom_scientifique, 100), nom_wolof: clip(x?.nom_wolof, 80),
+    categorie: cats.some(([c]) => c === x?.categorie) ? x.categorie : '',
+    conditionnement: units.some(([c]) => c === x?.conditionnement) ? x.conditionnement : '',
     confiance: ['forte', 'moyenne', 'faible'].includes(x?.confiance) ? x.confiance : 'faible',
   })).filter((x) => x.nom);
   return { suggestions, remarque: clip(out.remarque, 240) };
