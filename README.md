@@ -73,6 +73,10 @@ Application installable (PWA) sur `/agriculteur` : l'agriculteur se connecte ave
 
 Les polices sont **embarquées** dans `public/fonts/` (aucune requête vers Google : plus rapide, et les visiteurs ne sont pas exposés à un tiers). Site public **et** espace agriculteur : titres en **Fraunces** (serif douce, `font-display`), texte en **Source Sans 3**. Les `@font-face` sont dans `src/input.css` ; seuls les extraits « latin » (français) sont chargés d'office, les extraits « latin-ext » (lettres du wolof comme ŋ) ne le sont que si un de ces caractères apparaît. Les polices de l'espace agriculteur sont gardées par le service worker pour l'usage hors connexion (Fraunces latin et Source Sans 3). Licence SIL OFL 1.1 (`public/fonts/LICENSE.txt`). Pour changer de police : remplacer les fichiers, ajuster `src/input.css` et `tailwind.config.cjs`, puis `npm run build`.
 
+## 1 quinquies. Page FAQ
+
+La page **`/faq`** (« Questions fréquentes ») regroupe 14 questions en 4 rubriques (Commander, Paiement et livraison, Les plantes, Producteurs partenaires), en accordéons natifs `<details>` (accessibles au clavier et sans JavaScript). Le contenu est dans `src/faq.js` : modifier une question ou une réponse se fait là, et la page comme les données structurées `FAQPage` (schema.org, pour les moteurs de recherche) suivent. Les réponses ne décrivent que ce que le site fait (commande par WhatsApp, sans paiement en ligne, livraison organisée après validation) : frais, délais et zones de livraison ne sont pas annoncés, ils sont confirmés par le point de vente ; **à compléter dès que ces règles sont fixées**. Liens vers la FAQ : menu du site (ordinateur), pied de page, page Contact et étape « Commander en trois étapes » de l'accueil. `/questions-frequentes` redirige vers `/faq`.
+
 ## 2. Lancer en local
 
 ```bash
