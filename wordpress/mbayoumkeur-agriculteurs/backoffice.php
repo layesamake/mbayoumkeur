@@ -32,6 +32,7 @@ function mbk_univers_choices(): array {
     'fleurs' => 'Fleurs',
     'terreaux' => 'Terreaux et substrat',
     'accessoires' => 'Accessoires de jardinage',
+    'produits-phyto' => 'Produits phyto',
   ];
 }
 
@@ -43,6 +44,7 @@ function mbk_univers_icon(string $slug): string {
     'fleurs' => '🌸',
     'terreaux' => '🌱',
     'accessoires' => '✂️',
+    'produits-phyto' => '🧴',
   ];
   return $icons[$slug] ?? '🪴';
 }

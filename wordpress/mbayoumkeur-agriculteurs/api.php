@@ -17,8 +17,8 @@
 if (!defined('ABSPATH')) exit;
 if (!function_exists('mbk_is_farmer') || !defined('MBK_CPT') || !function_exists('mbk_univers_choices')) return;
 
-const MBK_API_UNITS = ['pot' => 'Pot', 'plant' => 'Plant', 'alveole' => 'Alvéole', 'sachet' => 'Sachet', 'botte' => 'Botte'];
-const MBK_API_HIDDEN_UNIVERS = ['terreaux', 'accessoires']; // vendus par la boutique, pas produits par les agriculteurs
+const MBK_API_UNITS = ['pot' => 'Pot', 'plant' => 'Plant', 'alveole' => 'Alvéole', 'sachet' => 'Sachet', 'botte' => 'Botte', 'flacon' => 'Flacon', 'bidon' => 'Bidon'];
+const MBK_API_HIDDEN_UNIVERS = ['terreaux', 'accessoires', 'produits-phyto']; // vendus par la boutique, pas produits par les agriculteurs
 const MBK_GAL = 'mbk_galerie';  // photos supplémentaires : liste d'identifiants de médias (5 photos au maximum avec la principale)
 const MBK_GAL_MAX = 4;
 

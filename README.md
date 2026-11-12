@@ -22,7 +22,7 @@ Il ajoute le menu **Produits**, la taxonomie **Catégories de produits** et les 
 
 Chaque produit : titre, description, **image à la une**, catégorie, et champs personnalisés `prix` / `unite`.
 
-Catégories prévues : Herbes aromatiques · Plantes comestibles · Arbres fruitiers · Terreaux et substrat · Accessoires de jardinage.
+Catégories prévues : Herbes aromatiques · Plantes comestibles · Arbres fruitiers · Terreaux et substrat · Accessoires de jardinage · **Produits phyto** (engrais foliaires D.I. Grow, vendus par la boutique : univers `produits-phyto`, masqué dans l'application agriculteur ; conditionnements « flacon » et « bidon »).
 
 Données d'exemple (3 produits par catégorie) : créer un *mot de passe d'application* (Utilisateurs › Profil), puis :
 
