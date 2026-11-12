@@ -309,6 +309,32 @@ add_action('wp_dashboard_setup', function () {
   }, null, null, 'side', 'high');
 }, 1000);
 
+// Largeur du menu : ajustée au texte le plus long (calculée dans le navigateur, mémorisée pour éviter tout saut à l'affichage)
+add_action('admin_head', function () {
+  echo '<script>try{var w=parseInt(localStorage.getItem("mbkMenuW"),10);if(w>=200&&w<=380)document.documentElement.style.setProperty("--mbk-menu-w",w+"px")}catch(e){}</script>';
+}, 1);
+add_action('admin_footer', function () {
+  echo '<script>' . <<<'JS'
+(function(){
+  function textW(el){var r=document.createRange();r.selectNodeContents(el);return r.getBoundingClientRect().width;}
+  function fit(){
+    var m=document.getElementById('adminmenu');
+    if(!m||document.body.classList.contains('folded')||window.innerWidth<961)return;
+    var need=0;
+    m.querySelectorAll('li.menu-top > a.menu-top .wp-menu-name').forEach(function(n){need=Math.max(need,textW(n)+36+16);});
+    m.querySelectorAll('li.wp-has-current-submenu .wp-submenu li:not(.wp-submenu-head) a').forEach(function(a){need=Math.max(need,textW(a)+26+14);});
+    var w=Math.min(380,Math.max(200,Math.ceil(need)));
+    document.documentElement.style.setProperty('--mbk-menu-w',w+'px');
+    try{localStorage.setItem('mbkMenuW',w);}catch(e){}
+  }
+  fit();
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+  window.addEventListener('resize',fit);
+})();
+JS
+  . '</script>';
+}, 1);
+
 /* ------------------------------------------------------------------ */
 /* Masquer WordPress                                                   */
 /* ------------------------------------------------------------------ */
@@ -461,11 +487,12 @@ body.wp-admin{color:#1c2a17;line-height:1.5}
 .mbk-cats b{color:#04481a}
 .mbk-links{display:grid;gap:8px}
 .mbk-links .button{text-align:left;justify-content:flex-start}
+#adminmenu .wp-menu-name,#adminmenu .wp-submenu a{white-space:nowrap}
 @media screen and (min-width:961px){
-body.wp-admin:not(.folded) #wpcontent,body.wp-admin:not(.folded) #wpfooter{margin-left:290px}
-body.wp-admin:not(.folded) #adminmenuback,body.wp-admin:not(.folded) #adminmenuwrap,body.wp-admin:not(.folded) #adminmenu{width:290px}
-body.wp-admin:not(.folded) #adminmenu .wp-not-current-submenu .wp-submenu{left:290px}
-body.wp-admin:not(.folded) #adminmenu .wp-submenu{min-width:240px}
+body.wp-admin:not(.folded) #wpcontent,body.wp-admin:not(.folded) #wpfooter{margin-left:var(--mbk-menu-w,260px)}
+body.wp-admin:not(.folded) #adminmenuback,body.wp-admin:not(.folded) #adminmenuwrap,body.wp-admin:not(.folded) #adminmenu{width:var(--mbk-menu-w,260px)}
+body.wp-admin:not(.folded) #adminmenu .wp-not-current-submenu .wp-submenu{left:var(--mbk-menu-w,260px)}
+body.wp-admin:not(.folded) #adminmenu .wp-submenu{min-width:200px}
 }
 CSS;
   if (mbk_is_farmer()) {
