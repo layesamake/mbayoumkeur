@@ -5,6 +5,7 @@ import express from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import { describePlant, identifyPlant, aiEnabled } from './ai.js';
+import { SHOPS } from './shops.js';
 
 const WP_URL = (process.env.WP_URL || 'https://cms.mbayoumkeur.shop').replace(/\/$/, '');
 const COOKIE = 'mbk_agri';
@@ -143,7 +144,7 @@ export function farmerRouter() {
 
   api.post('/logout', (req, res) => { res.clearCookie(COOKIE, { path: '/agriculteur' }); res.json({ ok: true }); });
   api.get('/session', auth, (req, res) => res.json({ nom: req.sess.nom, id: req.sess.id }));
-  api.get('/config', auth, wrap(async (req, res) => res.json({ ...(await wp(req.sess, 'GET', '/config')), ia: aiEnabled() })));
+  api.get('/config', auth, wrap(async (req, res) => res.json({ ...(await wp(req.sess, 'GET', '/config')), ia: aiEnabled(), boutiques: SHOPS.map((s) => ({ name: s.name, display: s.display })) })));
   // Description proposée par l'assistant : photo (facultative) + nom ; rien n'est enregistré, le client remplit le formulaire
   api.post('/ia/description', auth, upload.single('photo'), wrap(async (req, res) => {
     const line = (v, n) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, n);
