@@ -33,7 +33,10 @@
   <div class="rounded-3xl border-2 border-dashed border-leaf-600 p-6 md:p-8 flex flex-col justify-center">
     <h2 class="font-display font-extrabold text-2xl text-leaf-900">Vous savez déjà ce qu’il vous faut&nbsp;?</h2>
     <p class="mt-1.5 text-slate-700 max-w-[40ch]">Composez votre sélection dans la boutique, elle part en un message WhatsApp.</p>
-    <a href="/boutique" class="mt-5 self-start inline-flex items-center gap-2 min-h-12 px-6 rounded-full bg-carrot text-leaf-900 text-lg font-bold hover:brightness-110 transition">Voir la boutique<%- include('_icon', {name:'arrow'}) %></a>
+    <div class="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2">
+      <a href="/boutique" class="inline-flex items-center gap-2 min-h-12 px-6 rounded-full bg-carrot text-leaf-900 text-lg font-bold hover:brightness-110 transition">Voir la boutique<%- include('_icon', {name:'arrow'}) %></a>
+      <a href="/faq" class="inline-flex items-center min-h-12 font-semibold text-leaf-700 underline underline-offset-4 hover:text-leaf-900">Questions fréquentes</a>
+    </div>
   </div>
 </section>
 <%- include('_foot') %>

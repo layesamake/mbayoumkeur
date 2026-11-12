@@ -1,0 +1,45 @@
+<%- include('_head', {title:'Questions fréquentes', description:'Commander, paiement, livraison, entretien des plantes : les réponses aux questions les plus fréquentes sur Mbayoumkeur.', jsonLd}) %>
+
+<section class="max-w-6xl mx-auto px-5 pt-10 md:pt-16">
+  <h1 class="font-display font-extrabold text-4xl md:text-6xl text-leaf-900 leading-[1.02] tracking-tight max-w-[18ch]">Questions fréquentes</h1>
+  <p class="mt-5 text-lg md:text-xl text-slate-700 leading-relaxed max-w-[46ch]">Commander, payer, être livré, entretenir ses plantes : l’essentiel en quelques réponses. Une autre question&nbsp;? Écrivez-nous sur WhatsApp.</p>
+  <nav aria-label="Sujets de la FAQ" class="mt-7 flex flex-wrap gap-2.5">
+    <% groups.forEach((g) => { %><a href="#<%= g.id %>" class="inline-flex items-center min-h-11 px-5 rounded-full border-2 border-leaf-600 text-leaf-900 font-semibold hover:bg-leaf-600 hover:text-white transition"><%= g.titre %></a><% }) %>
+  </nav>
+</section>
+
+<section class="max-w-3xl mx-auto px-5 mt-10 md:mt-14 space-y-12">
+  <% groups.forEach((g) => { %>
+  <div id="<%= g.id %>" class="scroll-mt-24">
+    <h2 class="font-display font-extrabold text-2xl md:text-3xl text-leaf-900"><%= g.titre %></h2>
+    <div class="mt-4 space-y-3">
+      <% g.items.forEach(([q, a]) => { %>
+      <details class="group rounded-2xl border-2 border-leaf-100 bg-leaf-50 open:bg-white open:border-leaf-600 transition-colors">
+        <summary class="flex items-center justify-between gap-4 cursor-pointer min-h-14 px-5 py-3 list-none [&::-webkit-details-marker]:hidden font-display font-bold text-lg md:text-xl text-leaf-900 leading-snug rounded-2xl">
+          <span><%= q %></span>
+          <svg class="shrink-0 w-6 h-6 text-leaf-600 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <p class="px-5 pb-5 text-slate-700 text-lg leading-relaxed max-w-[62ch]"><%= a %></p>
+      </details>
+      <% }) %>
+    </div>
+    <% if (g.id === 'producteurs') { %>
+    <p class="mt-4"><a href="/agriculteur" rel="nofollow" class="inline-flex items-center min-h-11 font-semibold text-leaf-700 underline underline-offset-4 hover:text-leaf-900">Ouvrir l’Espace agriculteurs</a></p>
+    <% } %>
+  </div>
+  <% }) %>
+</section>
+
+<section class="max-w-3xl mx-auto px-5 mt-14 md:mt-20">
+  <div class="rounded-3xl bg-leaf-900 text-white p-7 md:p-10">
+    <h2 class="font-display font-extrabold text-2xl md:text-3xl">Votre question n’est pas là&nbsp;?</h2>
+    <p class="mt-2 text-leaf-100 text-lg max-w-[44ch]">Écrivez au point de vente le plus proche de vous : nous répondons par WhatsApp.</p>
+    <div class="mt-6 flex flex-wrap gap-3">
+      <% shops.forEach((s) => { const wa = 'https://wa.me/' + s.number + '?text=' + encodeURIComponent('Bonjour ' + siteName + ', j’ai une question : '); %>
+      <a href="<%= wa %>" target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-2 min-h-12 px-6 rounded-full bg-[#25D366] text-leaf-900 text-lg font-bold hover:brightness-95 transition"><%- include('_icon', {name:'chat'}) %><%= s.name %><span class="sr-only"> sur WhatsApp (s’ouvre dans un nouvel onglet)</span></a>
+      <% }) %>
+      <a href="/nous-contacter" class="inline-flex items-center justify-center min-h-12 px-6 rounded-full border-2 border-white/60 text-lg font-semibold hover:bg-white/10 transition">Voir la page Contact</a>
+    </div>
+  </div>
+</section>
+<%- include('_foot') %>

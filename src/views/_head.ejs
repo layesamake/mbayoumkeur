@@ -13,6 +13,7 @@
 <meta property="og:description" content="<%= pageDesc %>"><meta property="og:image" content="<%= absImg %>">
 <link rel="icon" type="image/png" href="/img/icon.png"><link rel="apple-touch-icon" href="/img/icon.png">
 <link rel="preload" href="/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="/fonts/source-sans-3-400.woff2" as="font" type="font/woff2" crossorigin>
+<% if (typeof jsonLd !== 'undefined') { %><script type="application/ld+json"><%- jsonLd %></script><% } %>
 <link rel="stylesheet" href="/style.css"></head>
 <body class="bg-white text-slate-800 font-sans antialiased pb-20 md:pb-0" data-shops="<%= JSON.stringify(shops) %>" data-site="<%= siteName %>">
 <a href="#contenu" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:text-leaf-900 focus:font-semibold focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg">Aller au contenu</a>
@@ -22,6 +23,7 @@
     <nav aria-label="Principale" class="hidden md:flex gap-5 text-sm ml-6">
       <a class="hover:text-leaf-600" href="/boutique" <%- cur('/boutique') %>>Boutique</a>
       <a class="hover:text-leaf-600" href="/notre-histoire" <%- cur('/notre-histoire') %>>Notre histoire</a>
+      <a class="hover:text-leaf-600" href="/faq" <%- cur('/faq') %>>FAQ</a>
       <a class="hover:text-leaf-600" href="/nous-contacter" <%- cur('/nous-contacter') %>>Contact</a>
     </nav>
 <% if (typeof noHeaderSearch === 'undefined') { %><form action="/boutique" role="search" class="hidden md:block ml-auto"><label for="q-desktop" class="sr-only">Rechercher un produit</label><input id="q-desktop" name="q" type="search" value="<%= q %>" placeholder="Rechercher…" class="border rounded-full px-4 py-2 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-leaf-600"></form><% } %>

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getCatalog } from './wp.js';
 import { shopView } from './shop.js';
 import { farmerRouter } from './farmer.js';
+import { faqGroups, faqJsonLd } from './faq.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_NAME = process.env.SITE_NAME || 'Mbayoumkeur';
@@ -64,6 +65,8 @@ app.get('/produit/:slug', (req, res) => {
 app.get('/ma-selection', (req, res) => res.render('cart'));
 app.get('/notre-histoire', (req, res) => res.render('about'));
 app.get('/nous-contacter', (req, res) => res.render('contact'));
+app.get('/faq', (req, res) => { const groups = faqGroups(SHOPS); res.render('faq', { groups, jsonLd: faqJsonLd(groups) }); });
+app.get(['/questions-frequentes', '/foire-aux-questions'], (req, res) => res.redirect(301, '/faq'));
 app.get('/health', (req, res) => res.send('ok'));
 app.use((req, res) => res.status(404).render('404'));
 app.use((err, req, res, next) => { console.error(err); res.status(500).send('Erreur serveur'); });
