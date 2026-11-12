@@ -116,6 +116,7 @@ function mbk_api_plante(WP_Post $p): array {
   return [
     'id' => $p->ID,
     'ref' => 'MK-' . str_pad((string) $p->ID, 4, '0', STR_PAD_LEFT),
+    'slug' => (string) $p->post_name,
     'titre' => html_entity_decode(get_the_title($p), ENT_QUOTES, 'UTF-8'),
     'nom_local' => (string) get_post_meta($p->ID, 'nom_local', true),
     'description' => trim(wp_strip_all_tags($p->post_content)),

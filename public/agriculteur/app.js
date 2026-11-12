@@ -116,6 +116,7 @@
     crop: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>`,
     gallery: (c = 'w-6 h-6') => `<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m21 16-5-5-8 8"/></svg>`,
     mic: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5V22"/></svg>`,
+    share: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>`,
     back: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>`,
     leaf: `<svg class="w-14 h-14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 2C9 2 3 6 3 12c0 1.5.5 2.8 1.3 3.8C5 12 8 9 12 7.5 8.5 9.5 6 12.5 5 17c.5.2 1 .3 1.5.3 6 0 10.5-5 10.5-11.5V2Z"/></svg>`,
   };
@@ -546,7 +547,10 @@
           ${p.nom_local ? `<p class="text-base italic text-slate-700 line-clamp-1 break-words">${esc(p.nom_local)}</p>` : ''}
           <p class="text-slate-700">${p.prix ? fcfa(p.prix) + ' FCFA' + (p.conditionnement ? ' / ' + esc(UNIT(p.conditionnement)) : '') : 'Prix sur demande'}</p>
         </div>
-        <span class="self-start rounded-full px-3 py-0.5 text-base font-bold text-leaf-900 ${chip[0]}">${chip[1]}</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="rounded-full px-3 py-0.5 text-base font-bold text-leaf-900 ${chip[0]}">${chip[1]}</span>
+          ${online && p.disponible && !p.local && !p.pending ? `<button type="button" data-share="${p.id}" aria-label="Partager ${esc(p.titre)} sur WhatsApp" class="inline-flex items-center gap-1.5 min-h-11 rounded-full bg-carrot px-4 text-base font-extrabold text-leaf-900 active:translate-y-px">${ICON.share}Partager</button>` : ''}
+        </div>
         ${p.erreur ? `<p class="mt-1 text-base font-semibold text-red-800">À corriger : ${esc(p.erreur)}</p>` : ''}
       </div>
       <label class="shrink-0 flex flex-col items-center justify-center gap-1.5 w-[4.25rem] cursor-pointer">
@@ -1048,6 +1052,58 @@
     } finally { btn.disabled = false; }
   }
 
+  /* ----- Partage sur WhatsApp : un visuel de statut prêt à publier ----- */
+  async function sharePlant(id) {
+    const p = state.plantes.find((x) => x.id === id); if (!p || !window.mbkStatus || sharing) return;
+    sharing = true; toast('Préparation du visuel…');
+    try {
+      let photo = null;
+      const src = p.photo_full || p.photo;
+      if (src) { try { photo = await fetchOnline(src); } catch { /* sans photo : le visuel garde l'emblème */ } }
+      const unite = p.conditionnement ? UNIT(p.conditionnement) : '';
+      const blob = await window.mbkStatus.render({ titre: p.titre, local: p.nom_local, prix: p.prix, unite, photo, shops: state.config?.boutiques || [] });
+      const link = location.origin + (p.slug ? '/produit/' + p.slug : '/boutique');
+      const prix = p.prix ? ' : ' + fcfa(p.prix) + ' FCFA' + (unite ? ' / ' + unite : '') : '';
+      openShare(p, blob, `🌱 ${p.titre}${prix}\nCommandez sur WhatsApp 👉 ${link}`);
+    } catch { toast('Le visuel n’a pas pu être préparé. Réessayez.', 'err'); }
+    finally { sharing = false; }
+  }
+  let sharing = false;
+  function openShare(p, blob, caption) {
+    const url = URL.createObjectURL(blob);
+    const name = 'mbayoumkeur-' + (p.slug || p.titre).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.jpg';
+    const file = new File([blob], name, { type: blob.type });
+    const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    const btn = 'w-full flex items-center justify-center gap-2.5 min-h-14 rounded-full border-2 border-leaf-900 bg-white text-leaf-900 font-display font-bold text-lg active:bg-leaf-100';
+    const ov = document.createElement('div');
+    ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Partager sur WhatsApp');
+    ov.className = 'fixed inset-0 z-[70] bg-leaf-900/95 overflow-y-auto';
+    ov.innerHTML = `<div class="min-h-full flex flex-col items-center gap-4 p-4 pb-8">
+      <h2 class="font-display font-extrabold text-2xl text-white pt-2">Votre statut WhatsApp</h2>
+      <img src="${url}" alt="Aperçu du visuel pour ${esc(p.titre)}" class="w-full max-w-[15rem] rounded-2xl shadow-xl">
+      <div class="w-full max-w-md rounded-3xl bg-white text-leaf-900 p-4 space-y-3">
+        ${canShare ? `<button type="button" data-r="share" class="w-full flex items-center justify-center gap-2.5 min-h-16 rounded-full bg-carrot text-leaf-900 font-display font-extrabold text-xl shadow-[0_5px_0_rgba(0,0,0,.2)] active:translate-y-[3px] active:shadow-none">${ICON.share}Partager sur WhatsApp</button>
+        <p class="text-base text-slate-700">Choisissez WhatsApp, puis « Mon statut » pour le publier.</p>` : ''}
+        <label for="share-text" class="block font-display font-bold text-lg">Texte à envoyer avec le visuel</label>
+        <textarea id="share-text" rows="3" class="w-full rounded-2xl border-2 border-leaf-100 p-3 text-lg leading-snug focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60">${esc(caption)}</textarea>
+        <a data-r="dl" href="${url}" download="${esc(name)}" class="${btn}">Enregistrer l’image</a>
+        <button type="button" data-r="copy" class="${btn}">Copier le texte</button>
+        ${canShare ? '' : `<a data-r="wa" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(caption)}" class="${btn}">Envoyer le texte sur WhatsApp</a>`}
+        <button type="button" data-r="close" class="w-full min-h-12 font-semibold underline underline-offset-4">Fermer</button>
+      </div></div>`;
+    const close = () => { window.removeEventListener('keydown', onKey); ov.remove(); URL.revokeObjectURL(url); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey);
+    ov.addEventListener('click', async (e) => {
+      const r = e.target.closest('[data-r]')?.dataset.r; if (!r) return;
+      const text = ov.querySelector('#share-text').value;
+      if (r === 'close') close();
+      if (r === 'share') { try { await navigator.share({ files: [file], text }); } catch { /* annulé par l'agriculteur */ } }
+      if (r === 'copy') { try { await navigator.clipboard.writeText(text); toast('Texte copié.'); } catch { toast('Copie impossible : sélectionnez le texte à la main.', 'err'); } }
+    });
+    document.body.appendChild(ov); ov.querySelector('[data-r]').focus();
+  }
+
   /* ---------------- Actions de la liste ---------------- */
   async function setStock(id, on, input) {
     const p = state.plantes.find((x) => x.id === id); if (!p) return;
@@ -1109,6 +1165,7 @@
     if (a?.dataset.act === 'remove') removePlant();
     if (a?.dataset.act === 'flush') flush(true);
     const t = e.target.closest('[data-filter]'); if (t) { state.filter = t.dataset.filter; viewHome(); }
+    const sh = e.target.closest('[data-share]'); if (sh) sharePlant(Number(sh.dataset.share));
   });
   app.addEventListener('change', (e) => {
     const raw = e.target.dataset?.stock; if (raw === undefined) return;

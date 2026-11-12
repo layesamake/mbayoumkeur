@@ -6,17 +6,10 @@ import { shopView } from './shop.js';
 import { farmerRouter } from './farmer.js';
 import { faqGroups, faqJsonLd } from './faq.js';
 import { GESTES } from './conseils.js';
+import { SHOPS } from './shops.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_NAME = process.env.SITE_NAME || 'Mbayoumkeur';
-// Points de vente : "Nom|221XXXXXXXXX;Nom 2|221YYYYYYYYY" (variable SHOPS pour surcharger)
-const DEFAULT_SHOPS = 'Thiès – Quartier Mbambara|221768645834;Grand Mbour|221769410074';
-const SHOPS = (process.env.SHOPS || DEFAULT_SHOPS).split(';').map((s) => {
-  const [name, number] = s.split('|');
-  const digits = (number || '').replace(/\D/g, '');
-  const local = digits.startsWith('221') ? digits.slice(3) : digits;
-  return { name: name.trim(), number: digits, display: `+221 ${local.replace(/(\d{2})(\d{3})(\d{2})(\d{2})/, '$1 $2 $3 $4')}` };
-}).filter((s) => s.name && s.number);
 
 const app = express();
 app.set('view engine', 'ejs');
