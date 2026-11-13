@@ -31,6 +31,8 @@ app.use(wrap(async (req, res, next) => {
   req.products = products;
   Object.assign(res.locals, {
     siteName: SITE_NAME, shops: SHOPS, source,
+    // adresse de collecte des statistiques de la boutique (WordPress) ; vide si le catalogue de démonstration est affiché
+    statsUrl: source === 'wordpress' ? (process.env.WP_URL || 'https://cms.mbayoumkeur.shop').replace(/\/$/, '') + '/wp-json/mbk/v1/evenement' : '',
     instagram: process.env.INSTAGRAM_URL || 'https://www.instagram.com/mbayoumkeurshop/',
     facebook: process.env.FACEBOOK_URL || 'https://www.facebook.com/mbayoumkeur', fcfa, q: '',
     baseUrl: `${req.protocol}://${req.get('host')}`,

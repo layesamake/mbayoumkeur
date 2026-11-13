@@ -179,6 +179,7 @@ export function farmerRouter() {
     res.set({ 'Content-Type': type, 'Cache-Control': 'private, max-age=300' });
     res.send(Buffer.from(await r.arrayBuffer()));
   }));
+  api.get('/tableau', auth, wrap(async (req, res) => res.json(await wp(req.sess, 'GET', '/tableau'))));
   api.get('/plantes', auth, wrap(async (req, res) => res.json(await wp(req.sess, 'GET', '/plantes'))));
   api.post('/plantes', auth, plantPhotos, wrap(async (req, res) => res.status(201).json(await wp(req.sess, 'POST', '/plantes', { form: toForm(req) }))));
   api.post('/plantes/:id(\\d+)', auth, plantPhotos, wrap(async (req, res) => res.json(await wp(req.sess, 'POST', `/plantes/${req.params.id}`, { form: toForm(req) }))));
