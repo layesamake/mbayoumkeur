@@ -4,7 +4,7 @@
 import express from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
-import { describePlant, identifyPlant, aiEnabled } from './ai.js';
+import { describePlant, identifyPlant, diagnosePlant, aiEnabled } from './ai.js';
 import { SHOPS } from './shops.js';
 
 const WP_URL = (process.env.WP_URL || 'https://cms.mbayoumkeur.shop').replace(/\/$/, '');
@@ -77,13 +77,15 @@ const tooMany = (ip) => {
 // Assistant : 6 demandes par minute (tous types confondus), 30 descriptions et 40 identifications par jour et par agriculteur
 // (chaque demande coûte un appel au modèle)
 const aiUse = new Map();
-const AI_DAY = { description: 30, identification: 40 };
+const AI_DAY = { description: 30, identification: 40, diagnostic: 15 };
 const aiLimit = (id, kind = 'description') => {
   const now = Date.now();
   const all = (aiUse.get(id) || []).filter((t) => now - t.at < 24 * 3600 * 1000);
   if (all.filter((t) => now - t.at < 60 * 1000).length >= 6) throw new HttpError(429, 'Doucement : réessayez dans une minute.', 'ia_occupe');
   if (all.filter((t) => t.kind === kind).length >= AI_DAY[kind]) {
-    throw new HttpError(429, kind === 'identification' ? 'Vous avez atteint la limite d’identifications pour aujourd’hui. Saisissez le nom vous-même.' : 'Vous avez atteint la limite de descriptions pour aujourd’hui. Rédigez celle-ci vous-même.', 'ia_limite');
+    throw new HttpError(429, kind === 'identification' ? 'Vous avez atteint la limite d’identifications pour aujourd’hui. Saisissez le nom vous-même.'
+      : kind === 'diagnostic' ? 'Vous avez atteint la limite de diagnostics pour aujourd’hui. Réessayez demain, ou demandez conseil à Mbayoum Keur sur WhatsApp.'
+        : 'Vous avez atteint la limite de descriptions pour aujourd’hui. Rédigez celle-ci vous-même.', 'ia_limite');
   }
   all.push({ at: now, kind }); aiUse.set(id, all);
 };
@@ -144,7 +146,7 @@ export function farmerRouter() {
 
   api.post('/logout', (req, res) => { res.clearCookie(COOKIE, { path: '/agriculteur' }); res.json({ ok: true }); });
   api.get('/session', auth, (req, res) => res.json({ nom: req.sess.nom, id: req.sess.id }));
-  api.get('/config', auth, wrap(async (req, res) => res.json({ ...(await wp(req.sess, 'GET', '/config')), ia: aiEnabled(), boutiques: SHOPS.map((s) => ({ name: s.name, display: s.display })) })));
+  api.get('/config', auth, wrap(async (req, res) => res.json({ ...(await wp(req.sess, 'GET', '/config')), ia: aiEnabled(), boutiques: SHOPS.map((s) => ({ name: s.name, display: s.display, number: s.number })) })));
   // Description proposée par l'assistant : photo (facultative) + nom ; rien n'est enregistré, le client remplit le formulaire
   api.post('/ia/description', auth, upload.single('photo'), wrap(async (req, res) => {
     const line = (v, n) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -162,6 +164,12 @@ export function farmerRouter() {
     aiLimit(req.sess.id, 'identification');
     const list = (v) => { try { const a = JSON.parse(String(v || '[]')); return Array.isArray(a) ? a : []; } catch { return []; } };
     res.json(await identifyPlant({ image: req.file.buffer, mime: req.file.mimetype, univers: list(req.body?.univers), conditionnements: list(req.body?.conditionnements) }));
+  }));
+  // Diagnostic d'une plante malade : photo + (facultatif) nom et ce que l'agriculteur observe ; rien n'est enregistré
+  api.post('/ia/diagnostic', auth, upload.single('photo'), wrap(async (req, res) => {
+    if (!req.file) throw new HttpError(400, 'Prenez d’abord une photo de la partie malade de la plante.', 'champ');
+    aiLimit(req.sess.id, 'diagnostic');
+    res.json(await diagnosePlant({ image: req.file.buffer, mime: req.file.mimetype, nom: req.body?.nom, symptomes: req.body?.symptomes }));
   }));
   // Relais d'une photo déjà en ligne : le navigateur ne peut pas la relire lui-même (autre domaine, pas d'autorisation CORS) et
   // sans cela il ne pourrait pas la recadrer ni la retoucher. Seules les photos de la médiathèque du WordPress configuré passent.
