@@ -43,7 +43,7 @@
     if (!SR) return;
     if (dict) { const same = dict.id === id; stopDictation(); if (same) return; }
     const el = document.getElementById(id); if (!el) return;
-    const key = id === 'f-desc' ? 'description' : 'conseils';
+    const key = id === 'f-desc' ? 'description' : id === 'diag-sym' ? 'symptomes' : 'conseils';
     const d = { id, active: true, tries: 0, rec: null };
     dict = d;
     const begin = () => {
@@ -56,7 +56,7 @@
         let fin = '', tmp = '';
         for (const r of e.results) (r.isFinal ? (fin += ' ' + r[0].transcript) : (tmp += ' ' + r[0].transcript));
         el.value = joinText(joinText(base, fin), tmp).slice(0, el.maxLength > 0 ? el.maxLength : undefined);
-        state.form[key] = el.value;
+        (id === 'diag-sym' ? state.diag : state.form)[key] = el.value;
       };
       rec.onerror = (e) => {
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') stopDictation('Le micro est refusé. Autorisez-le dans les réglages du navigateur pour ce site.');
@@ -578,7 +578,10 @@
         <button type="button" data-act="logout" class="shrink-0 min-h-12 px-5 rounded-full border-2 border-white/40 font-semibold">Quitter</button>
       </div>
       <p class="mt-3 text-leaf-100"><strong class="font-display text-white text-2xl">${real.length}</strong> ${plural(real.length, 'plante', 'plantes')}, dont <strong class="font-display text-white text-2xl">${on}</strong> en ligne</p>${snap}
-      <a href="#/tableau" class="mt-3 inline-flex items-center gap-2 min-h-12 px-5 rounded-full bg-white text-leaf-900 font-display font-bold text-lg active:bg-leaf-100"><span aria-hidden="true">📊</span>Mon tableau de bord</a>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <a href="#/tableau" class="inline-flex items-center gap-2 min-h-12 px-5 rounded-full bg-white text-leaf-900 font-display font-bold text-lg active:bg-leaf-100"><span aria-hidden="true">📊</span>Mon tableau de bord</a>
+        ${state.config?.ia ? `<a href="#/diagnostic" class="inline-flex items-center gap-2 min-h-12 px-5 rounded-full bg-white text-leaf-900 font-display font-bold text-lg active:bg-leaf-100"><span aria-hidden="true">🩺</span>Plante malade ?</a>` : ''}
+      </div>
     </header>
     <main class="px-4 pt-4 pb-36">
       ${n ? `
@@ -600,6 +603,108 @@
     <div class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t-2 border-leaf-100 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
       <a href="#/nouvelle" class="flex items-center justify-center gap-3 min-h-16 rounded-full bg-carrot text-leaf-900 font-display font-extrabold text-2xl shadow-[0_5px_0_rgba(0,0,0,.2)] active:translate-y-[3px] active:shadow-none">${ICON.camera()}Nouvelle plante</a>
     </div>`;
+  }
+
+  /* ----- Diagnostic d'une plante malade : une photo, des causes possibles et des gestes à faire ----- */
+  const URGENCE = { forte: ['bg-carrot text-leaf-900', 'À traiter vite'], moyenne: ['bg-sun-soft text-leaf-900', 'À surveiller de près'], faible: ['bg-leaf-100 text-leaf-900', 'Pas d’urgence'] };
+  const newDiag = () => ({ photo: null, nom: '', symptomes: '', status: 'idle', result: null, message: '' });
+
+  function paintDiag() {
+    const d = state.diag, el = $('#diag-result'), go = $('#diag-go'); if (!el || !d) return;
+    if (go) { go.disabled = !d.photo || d.status === 'loading'; $('#diag-go-label').textContent = d.status === 'loading' ? 'L’assistant regarde…' : d.result ? 'Analyser à nouveau' : 'Analyser la photo'; }
+    if (d.status === 'loading') { el.innerHTML = `<p role="status" class="rounded-2xl bg-leaf-50 border-2 border-leaf-100 px-4 py-4 font-display font-bold text-xl">L’assistant examine votre photo…</p>`; return; }
+    if (d.status === 'error') { el.innerHTML = `<p role="alert" class="rounded-2xl bg-sun-soft px-4 py-3 font-semibold">${esc(d.message)}</p>`; return; }
+    const r = d.result; if (!r) { el.innerHTML = ''; return; }
+    const u = URGENCE[r.urgence] || URGENCE.moyenne, sec = 'font-display font-extrabold text-2xl';
+    el.innerHTML = `
+      <div class="space-y-6">
+        <div class="rounded-2xl ${u[0]} px-4 py-3"><p class="font-display font-extrabold text-2xl">${u[1]}</p>${r.resume ? `<p class="mt-1 text-lg">${esc(r.resume)}</p>` : ''}</div>
+        ${r.remarque ? `<p role="status" class="rounded-2xl bg-sun-soft px-4 py-3 font-semibold">${esc(r.remarque)}</p>` : ''}
+        ${r.causes.length ? `<section aria-labelledby="d-causes"><h2 id="d-causes" class="${sec}">Causes possibles</h2><ul class="mt-3 space-y-3">${r.causes.map((c) => `
+          <li class="rounded-2xl bg-white border-2 border-leaf-100 p-3"><div class="flex items-center justify-between gap-3"><span class="font-display font-bold text-xl leading-tight">${esc(c.nom)}</span>
+          <span class="shrink-0 text-sm font-bold rounded-full px-2.5 py-0.5 bg-leaf-100 text-leaf-900">${CONF[c.confiance] || 'Possible'}</span></div>
+          <p class="mt-1 text-lg text-slate-700">${esc(c.explication)}</p></li>`).join('')}</ul></section>` : ''}
+        ${r.gestes.length ? `<section aria-labelledby="d-gestes"><h2 id="d-gestes" class="${sec}">À faire maintenant</h2><ol class="mt-3 space-y-2.5">${r.gestes.map((g, i) => `
+          <li class="flex gap-3 rounded-2xl bg-leaf-50 border-2 border-leaf-100 p-3"><span class="shrink-0 w-9 h-9 rounded-full bg-leaf-900 text-white font-display font-extrabold text-lg flex items-center justify-center" aria-hidden="true">${i + 1}</span><span class="text-lg leading-snug">${esc(g)}</span></li>`).join('')}</ol></section>` : ''}
+        ${r.prevention.length ? `<section aria-labelledby="d-prev"><h2 id="d-prev" class="${sec}">Pour éviter que cela revienne</h2><ul class="mt-3 space-y-2 text-lg">${r.prevention.map((g) => `<li class="flex gap-2.5"><span class="mt-2.5 shrink-0 w-2 h-2 rounded-full bg-leaf-600" aria-hidden="true"></span><span>${esc(g)}</span></li>`).join('')}</ul></section>` : ''}
+        ${r.consulter ? `<p class="rounded-2xl border-2 border-leaf-600 bg-white px-4 py-3 text-lg"><strong>Besoin d’aide ?</strong> ${esc(r.consulter)}</p>` : ''}
+        <div class="space-y-3">
+          <button type="button" data-act="diag-wa" class="w-full flex items-center justify-center gap-2.5 min-h-16 rounded-full bg-carrot text-leaf-900 font-display font-extrabold text-xl shadow-[0_5px_0_rgba(0,0,0,.2)] active:translate-y-[3px] active:shadow-none">${ICON.share}Demander conseil à Mbayoum Keur</button>
+          <p class="text-base text-slate-700">Joignez la photo à votre message pour recevoir un conseil précis.</p>
+          <button type="button" data-act="diag-new" class="w-full min-h-14 rounded-2xl border-2 border-leaf-900 bg-white text-leaf-900 font-display font-bold text-lg active:bg-leaf-100">Nouveau diagnostic</button>
+        </div>
+        <p class="text-base text-slate-700">L’assistant peut se tromper : c’est une aide, qui ne remplace pas l’avis d’un technicien agricole.</p>
+      </div>`;
+  }
+
+  function paintDiagPhoto() {
+    const d = state.diag, el = $('#diag-photo'); if (!el) return;
+    const tile = 'flex flex-col items-center justify-center gap-1.5 min-h-24 rounded-2xl border-2 border-leaf-900 bg-white font-display font-bold text-lg text-center active:bg-leaf-100 cursor-pointer';
+    el.innerHTML = `${d.photo ? `<div class="rounded-3xl overflow-hidden bg-leaf-50 aspect-[4/3] border-2 border-leaf-100"><img src="${esc(shown(d.photo))}" alt="Photo de la plante malade" class="w-full h-full object-contain"></div>` : ''}
+      <div class="mt-3 grid grid-cols-2 gap-3"><label for="dcam" class="${tile}">${ICON.camera('w-8 h-8')}<span>${d.photo ? 'Reprendre' : 'Prendre la photo'}</span></label>
+      <label for="dgal" class="${tile}">${ICON.gallery('w-8 h-8')}<span>Galerie</span></label></div>
+      <input id="dcam" type="file" accept="image/*" capture="environment" class="sr-only"><input id="dgal" type="file" accept="image/*" class="sr-only">`;
+  }
+
+  function viewDiagnostic() {
+    state.view = 'diag'; state.diag ??= newDiag();
+    const d = state.diag, lab = 'block font-display font-bold text-xl mb-2', field = 'w-full rounded-2xl border-2 border-leaf-100 bg-white px-4 text-xl focus:outline-none focus:border-leaf-600 focus:ring-4 focus:ring-carrot/60';
+    app.innerHTML = `
+    ${banner()}
+    <header class="sticky top-0 z-30 bg-leaf-900 text-white px-3 pt-[max(.75rem,env(safe-area-inset-top))] pb-3 flex items-center gap-2">
+      <a href="#/" class="shrink-0 w-12 h-12 inline-flex items-center justify-center rounded-full border-2 border-white/40" aria-label="Retour à mes plantes">${ICON.back}</a>
+      <h1 class="font-display font-extrabold text-2xl truncate">Plante malade ?</h1>
+    </header>
+    <main class="px-4 pt-5 pb-24 space-y-6">
+      <p class="text-lg">Photographiez la partie malade (feuille, tige, fruit). L’assistant propose des causes possibles et des gestes à faire.</p>
+      <section aria-labelledby="l-dphoto"><h2 id="l-dphoto" class="${lab}">Photo</h2><div id="diag-photo"></div></section>
+      <section><label for="diag-nom" class="${lab}">Nom de la plante <span class="text-base font-normal text-slate-700">(facultatif)</span></label>
+        <input id="diag-nom" value="${esc(d.nom)}" maxlength="80" autocomplete="off" enterkeyhint="next" placeholder="Tomate, manguier, menthe…" class="${field} h-16"></section>
+      <section><label for="diag-sym" class="${lab}">Ce que vous voyez <span class="text-base font-normal text-slate-700">(facultatif)</span></label>
+        <textarea id="diag-sym" rows="3" maxlength="500" placeholder="Feuilles jaunes, taches, petits insectes, depuis quand…" class="${field} p-4 leading-snug">${esc(d.symptomes)}</textarea>
+        ${dictBtn('diag-sym')}</section>
+      <button type="button" id="diag-go" class="w-full flex items-center justify-center gap-2.5 min-h-16 rounded-full bg-leaf-900 text-white font-display font-extrabold text-2xl disabled:opacity-50">${ICON.spark}<span id="diag-go-label">Analyser la photo</span></button>
+      <div id="diag-result" aria-live="polite"></div>
+    </main>`;
+    paintDiagPhoto(); paintDiag();
+    $('#diag-nom').addEventListener('input', (e) => { d.nom = e.target.value; });
+    $('#diag-sym').addEventListener('input', (e) => { d.symptomes = e.target.value; });
+    $('#diag-go').addEventListener('click', diagnose);
+    app.querySelector('main').addEventListener('change', (e) => {
+      if (e.target.id !== 'dcam' && e.target.id !== 'dgal') return;
+      const file = e.target.files?.[0]; if (!file) return;
+      dropPhoto(d.photo); d.photo = mkPhoto(file); d.result = null; d.status = 'idle';
+      paintDiagPhoto(); paintDiag();
+    });
+  }
+
+  async function diagnose() {
+    const d = state.diag; if (!d?.photo || d.status === 'loading') return;
+    stopDictation();
+    if (!navigator.onLine) { d.status = 'error'; d.message = 'Hors connexion : le diagnostic a besoin du réseau. Réessayez quand il revient, ou envoyez la photo à Mbayoum Keur sur WhatsApp.'; return paintDiag(); }
+    d.status = 'loading'; paintDiag();
+    try {
+      const light = await lightBlob(d.photo);
+      const fd = new FormData(); fd.append('photo', light, 'plante.' + ext(light)); fd.append('nom', d.nom.trim()); fd.append('symptomes', d.symptomes.trim());
+      d.result = await upload('/ia/diagnostic', fd, () => {}); d.status = 'done';
+    } catch (e) {
+      if (e.code === 'session') return sessionLost();
+      d.status = 'error'; d.message = e.message;
+    }
+    if (state.view === 'diag') { paintDiag(); $('#diag-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }
+
+  // Envoie la photo et le résultat à la boutique : partage du téléphone (avec la photo) ou message WhatsApp
+  async function diagWhatsApp() {
+    const d = state.diag, r = d?.result; if (!r) return;
+    const text = [`Bonjour ${'Mbayoum Keur'}, j’ai une plante qui ne va pas bien${d.nom.trim() ? ' : ' + d.nom.trim() : ''}.`,
+      d.symptomes.trim() && `Ce que je vois : ${d.symptomes.trim()}`, r.causes[0] && `L’assistant pense à : ${r.causes[0].nom}.`, 'Je vous envoie la photo.'].filter(Boolean).join('\n');
+    try {
+      const file = new File([d.photo.source], 'plante-malade.jpg', { type: d.photo.source.type || 'image/jpeg' });
+      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
+    } catch (e) { if (e?.name === 'AbortError') return; }
+    const shop = state.config?.boutiques?.[0];
+    window.open(`https://wa.me/${shop?.number || ''}?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   }
 
   /* ----- Tableau de bord du producteur : ce que les clients regardent, et ce qu'il reste à compléter ----- */
@@ -1245,6 +1350,8 @@
     if (a?.dataset.act === 'flush') flush(true);
     const t = e.target.closest('[data-filter]'); if (t) { state.filter = t.dataset.filter; viewHome(); }
     const sh = e.target.closest('[data-share]'); if (sh) sharePlant(Number(sh.dataset.share));
+    if (a?.dataset.act === 'diag-wa') diagWhatsApp();
+    if (a?.dataset.act === 'diag-new') { dropPhoto(state.diag?.photo); state.diag = newDiag(); viewDiagnostic(); window.scrollTo(0, 0); }
   });
   app.addEventListener('change', (e) => {
     const raw = e.target.dataset?.stock; if (raw === undefined) return;
@@ -1259,6 +1366,7 @@
     window.scrollTo(0, 0);
     if (h === 'nouvelle') return viewForm(null);
     if (h === 'tableau') return viewDashboard();
+    if (h === 'diagnostic') return viewDiagnostic();
     const m = h.match(/^plante\/([\w-]+)$/); if (m) return viewForm(/^\d+$/.test(m[1]) ? Number(m[1]) : m[1]);
     viewHome();
   }
