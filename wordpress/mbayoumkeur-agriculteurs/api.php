@@ -253,11 +253,89 @@ add_action('rest_api_init', function () {
 /* ------------------------------------------------------------------ */
 /* Routes                                                               */
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* Statistiques de la boutique (indicatives) et tableau de bord          */
+/* ------------------------------------------------------------------ */
+const MBK_STATS_META = 'mbk_stats';   // { 'AAAAMMJJ': { v: vues, a: ajouts à la sélection, c: demandes WhatsApp } }, 60 jours gardés
+const MBK_STATS_DAYS = 60;
+const MBK_STATS_KEYS = ['vue' => 'v', 'ajout' => 'a', 'commande' => 'c'];
+const MBK_STATS_TTL = ['vue' => 1800, 'ajout' => 120, 'commande' => 600]; // même visiteur, même plante : une fois par période
+
+function mbk_stats_add(int $id, string $k): void {
+  $s = get_post_meta($id, MBK_STATS_META, true);
+  if (!is_array($s)) $s = [];
+  $d = gmdate('Ymd'); // le Sénégal est à l'heure UTC
+  if (!isset($s[$d])) $s[$d] = ['v' => 0, 'a' => 0, 'c' => 0];
+  $s[$d][$k] = (int) ($s[$d][$k] ?? 0) + 1;
+  $min = gmdate('Ymd', time() - MBK_STATS_DAYS * 86400);
+  foreach (array_keys($s) as $day) if ((string) $day < $min) unset($s[$day]);
+  update_post_meta($id, MBK_STATS_META, $s);
+}
+
+// Collecte : envoyée par la boutique (balise navigateur). Toujours la même réponse ; chiffres indicatifs, pas comptables.
+function mbk_stats_collect(WP_REST_Request $r) {
+  $ok = new WP_REST_Response(['ok' => true]);
+  $ua = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
+  if ($ua === '' || preg_match('/bot|crawl|spider|slurp|preview|facebookexternalhit|headless|monitor|curl|wget/i', $ua)) return $ok;
+  $b = json_decode((string) $r->get_body(), true);
+  $type = is_array($b) ? (string) ($b['t'] ?? '') : '';
+  $refs = is_array($b) && is_array($b['refs'] ?? null) ? array_slice($b['refs'], 0, 20) : [];
+  if (!isset(MBK_STATS_KEYS[$type]) || !$refs) return $ok;
+
+  $who = md5((string) ($_SERVER['REMOTE_ADDR'] ?? '') . wp_salt()); // l'adresse n'est jamais conservée
+  $cap = 'mbk_st_d_' . $who;
+  $n = (int) get_transient($cap);
+  if ($n >= 400) return $ok; // plafond journalier par visiteur
+  set_transient($cap, $n + count($refs), DAY_IN_SECONDS);
+
+  foreach ($refs as $ref) {
+    if (!preg_match('/^MK-(\d{1,7})$/', (string) $ref, $m)) continue;
+    $id = (int) $m[1];
+    $p = get_post($id);
+    if (!$p || $p->post_type !== MBK_CPT || $p->post_status !== 'publish') continue;
+    $key = 'mbk_st_' . md5($who . $type . $id);
+    if (get_transient($key)) continue;
+    set_transient($key, 1, MBK_STATS_TTL[$type]);
+    mbk_stats_add($id, MBK_STATS_KEYS[$type]);
+  }
+  return $ok;
+}
+
+function mbk_stats_sum(array $s, int $from, int $to): array { // jours -$from à -$to avant aujourd'hui (0 = aujourd'hui)
+  $t = ['v' => 0, 'a' => 0, 'c' => 0];
+  for ($d = $from; $d <= $to; $d++) {
+    $day = gmdate('Ymd', time() - $d * 86400);
+    if (isset($s[$day])) foreach (array_keys($t) as $k) $t[$k] += (int) ($s[$day][$k] ?? 0);
+  }
+  return $t;
+}
+
+// Tableau de bord : chiffres des 7 derniers jours (et des 7 précédents) pour les plantes en ligne de l'agriculteur
+function mbk_stats_dashboard() {
+  $args = ['post_type' => MBK_CPT, 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids', 'no_found_rows' => true];
+  if (!current_user_can('manage_options')) $args['author'] = get_current_user_id();
+  $week = $prev = ['v' => 0, 'a' => 0, 'c' => 0];
+  $plantes = [];
+  foreach ((new WP_Query($args))->posts as $id) {
+    $s = get_post_meta($id, MBK_STATS_META, true);
+    if (!is_array($s)) $s = [];
+    $cur = mbk_stats_sum($s, 0, 6); $old = mbk_stats_sum($s, 7, 13); $m = mbk_stats_sum($s, 0, 29);
+    foreach (array_keys($week) as $k) { $week[$k] += $cur[$k]; $prev[$k] += $old[$k]; }
+    $plantes[] = ['id' => (int) $id, 'v7' => $cur['v'], 'a7' => $cur['a'], 'c7' => $cur['c'], 'v30' => $m['v'], 'a30' => $m['a'], 'c30' => $m['c']];
+  }
+  return ['semaine' => $week, 'precedente' => $prev, 'plantes' => $plantes];
+}
+
+add_action('rest_api_init', function () {
+  register_rest_route('mbk/v1', '/evenement', ['methods' => 'POST', 'callback' => 'mbk_stats_collect', 'permission_callback' => '__return_true']);
+});
+
 add_action('rest_api_init', function () {
   $perm = fn () => mbk_api_can() ?: new WP_Error('mbk_interdit', 'Réservé aux agriculteurs.', ['status' => 403]);
 
   register_rest_route('mbk/v1', '/login', ['methods' => 'POST', 'callback' => 'mbk_api_login', 'permission_callback' => '__return_true']);
   register_rest_route('mbk/v1', '/config', ['methods' => 'GET', 'callback' => 'mbk_api_config', 'permission_callback' => $perm]);
+  register_rest_route('mbk/v1', '/tableau', ['methods' => 'GET', 'callback' => 'mbk_stats_dashboard', 'permission_callback' => $perm]);
   register_rest_route('mbk/v1', '/plantes', [
     ['methods' => 'GET', 'callback' => 'mbk_api_list', 'permission_callback' => $perm],
     ['methods' => 'POST', 'callback' => 'mbk_api_create', 'permission_callback' => $perm],

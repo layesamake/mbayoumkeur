@@ -13,13 +13,24 @@
   const announce = (msg) => { const el = $('live'); if (!el) return; el.textContent = ''; setTimeout(() => (el.textContent = msg), 50); };
   const plural = (n) => `${n} article${n > 1 ? 's' : ''}`;
 
+  // Statistiques indicatives pour les producteurs (vues, ajouts à la sélection, demandes WhatsApp) : aucune donnée personnelle
+  // n'est envoyée, seulement le type d'évènement et les références MK-xxxx des plantes concernées.
+  const track = (type, refs) => {
+    const url = document.body.dataset.stats;
+    refs = (refs || []).filter(Boolean);
+    if (!url || !refs.length || navigator.doNotTrack === '1' || !navigator.sendBeacon) return;
+    try { navigator.sendBeacon(url, JSON.stringify({ t: type, refs })); } catch { /* sans importance */ }
+  };
+  const viewed = document.querySelector('[data-vue]');
+  if (viewed) track('vue', [viewed.dataset.vue]);
+
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-add]');
     if (!btn) return;
     const { slug, name, price, unit, ref } = btn.dataset;
     const item = cart.find((i) => i.slug === slug);
     if (item) item.qty += 1; else cart.push({ slug, name, ref: ref || '', price: Number(price) || 0, unit, qty: 1 });
-    save(cart); badge();
+    save(cart); badge(); track('ajout', [ref]);
     announce(`${name} ajouté à la sélection. ${plural(count())} au total.`);
     const old = btn.textContent; btn.textContent = '✓ Ajouté'; setTimeout(() => (btn.textContent = old), 1200);
   });
@@ -75,6 +86,7 @@
       else if (b.dataset.r) { msg = `${cart[b.dataset.r].name} retiré de la sélection`; cart.splice(b.dataset.r, 1); }
       save(cart); render(); announce(msg);
     });
+    $('wa-links').addEventListener('click', (e) => { if (e.target.closest('a')) track('commande', cart.map((i) => i.ref)); });
     $('cart-clear').addEventListener('click', () => { cart = []; save(cart); render(); announce('Sélection vidée'); });
     ['cust-name', 'cust-addr'].forEach((id) => $(id).addEventListener('input', render));
     render();

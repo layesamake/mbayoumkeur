@@ -578,6 +578,7 @@
         <button type="button" data-act="logout" class="shrink-0 min-h-12 px-5 rounded-full border-2 border-white/40 font-semibold">Quitter</button>
       </div>
       <p class="mt-3 text-leaf-100"><strong class="font-display text-white text-2xl">${real.length}</strong> ${plural(real.length, 'plante', 'plantes')}, dont <strong class="font-display text-white text-2xl">${on}</strong> en ligne</p>${snap}
+      <a href="#/tableau" class="mt-3 inline-flex items-center gap-2 min-h-12 px-5 rounded-full bg-white text-leaf-900 font-display font-bold text-lg active:bg-leaf-100"><span aria-hidden="true">📊</span>Mon tableau de bord</a>
     </header>
     <main class="px-4 pt-4 pb-36">
       ${n ? `
@@ -599,6 +600,84 @@
     <div class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t-2 border-leaf-100 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
       <a href="#/nouvelle" class="flex items-center justify-center gap-3 min-h-16 rounded-full bg-carrot text-leaf-900 font-display font-extrabold text-2xl shadow-[0_5px_0_rgba(0,0,0,.2)] active:translate-y-[3px] active:shadow-none">${ICON.camera()}Nouvelle plante</a>
     </div>`;
+  }
+
+  /* ----- Tableau de bord du producteur : ce que les clients regardent, et ce qu'il reste à compléter ----- */
+  // Une fiche complète est plus claire pour le client : chaque critère vaut des points (total 100)
+  const CRITERES = [
+    [30, 'une photo', (p) => !!p.photo],
+    [20, 'une description', (p) => (p.description || '').trim().length >= 40],
+    [15, 'un prix', (p) => p.prix > 0],
+    [15, 'des conseils d’entretien', (p) => (p.conseils || '').trim().length >= 20],
+    [10, 'le nom wolof', (p) => !!(p.nom_local || '').trim()],
+    [10, 'une deuxième photo', (p) => (p.galerie || []).length > 0],
+  ];
+  const completude = (p) => { const manque = CRITERES.filter((c) => !c[2](p)); return { score: 100 - manque.reduce((s, c) => s + c[0], 0), manque: manque.map((c) => c[1]) }; };
+
+  function paintDashboard() {
+    const el = $('#tableau'); if (!el) return;
+    const t = state.tableau, zero = { v7: 0, a7: 0, c7: 0 };
+    const online = state.plantes.filter((p) => !p.local && p.statut === 'publish');
+    const stats = new Map((t?.plantes || []).map((x) => [x.id, x]));
+    const tile = (icon, label, n, before) => {
+      const d = n - before;
+      const trend = !before && !n ? 'Pas encore de visite' : d === 0 ? 'Comme la semaine passée' : `${d > 0 ? '▲ +' : '▼ −'}${Math.abs(d)} sur la semaine passée`;
+      return `<div class="rounded-2xl bg-white border-2 border-leaf-100 p-3 text-center"><p class="text-2xl" aria-hidden="true">${icon}</p>
+        <p class="font-display font-extrabold text-4xl leading-none text-leaf-900">${n}</p><p class="mt-1 font-bold text-leaf-900 leading-tight">${label}</p>
+        <p class="mt-1 text-sm ${d > 0 ? 'text-leaf-700 font-semibold' : 'text-slate-700'}">${trend}</p></div>`;
+    };
+    let html = '';
+    if (t) {
+      const w = t.semaine, p = t.precedente, total = w.v + w.a + w.c;
+      html += `<section aria-labelledby="t-sem"><h2 id="t-sem" class="font-display font-extrabold text-2xl">Cette semaine</h2>
+        <div class="mt-3 grid grid-cols-3 gap-2.5">${tile('👀', 'Vues de vos plantes', w.v, p.v)}${tile('➕', 'Ajouts à une sélection', w.a, p.a)}${tile('💬', 'Demandes WhatsApp', w.c, p.c)}</div>
+        <p class="mt-2 text-base text-slate-700">Les 7 derniers jours, sur la boutique. Ce sont des chiffres indicatifs.</p></section>`;
+      const rows = online.map((pl) => ({ pl, s: stats.get(pl.id) || zero })).map((x) => ({ ...x, pts: x.s.c7 * 3 + x.s.a7 * 2 + x.s.v7 })).filter((x) => x.pts > 0).sort((a, b) => b.pts - a.pts).slice(0, 3);
+      if (rows.length) {
+        const max = rows[0].pts;
+        html += `<section aria-labelledby="t-top" class="mt-7"><h2 id="t-top" class="font-display font-extrabold text-2xl">Vos plantes les plus regardées</h2><ol class="mt-3 space-y-3">${rows.map((x, i) => `
+          <li class="rounded-2xl bg-white border-2 border-leaf-100 p-3"><div class="flex items-center gap-3">
+            <span class="shrink-0 w-9 h-9 rounded-full bg-leaf-900 text-white font-display font-extrabold text-lg flex items-center justify-center" aria-hidden="true">${i + 1}</span>
+            <a href="#/plante/${x.pl.id}" class="min-w-0 font-display font-bold text-xl leading-tight line-clamp-2 break-words">${esc(x.pl.titre)}</a></div>
+            <div class="mt-2 h-2.5 rounded-full bg-leaf-50 overflow-hidden" aria-hidden="true"><div class="h-full rounded-full bg-carrot" style="width:${Math.max(8, Math.round((x.pts / max) * 100))}%"></div></div>
+            <p class="mt-1.5 text-base text-slate-700">${x.s.v7} ${plural(x.s.v7, 'vue', 'vues')} · ${x.s.a7} ${plural(x.s.a7, 'ajout', 'ajouts')} · ${x.s.c7} ${plural(x.s.c7, 'demande', 'demandes')}</p></li>`).join('')}</ol></section>`;
+      } else if (!total) {
+        html += `<p class="mt-5 rounded-2xl bg-leaf-50 border-2 border-leaf-100 p-4 text-lg">Les chiffres se remplissent quand des clients visitent la boutique. Partagez vos plantes sur WhatsApp avec le bouton orange « Partager » pour les faire connaître.</p>`;
+      }
+    } else {
+      html += `<p class="rounded-2xl bg-sun-soft p-4 font-semibold">${navigator.onLine ? 'Les chiffres de la boutique ne sont pas disponibles pour le moment.' : 'Hors connexion : les chiffres de la boutique reviendront avec le réseau.'}</p>`;
+    }
+    // fiches à compléter
+    const todo = online.map((pl) => ({ pl, c: completude(pl) })).filter((x) => x.c.score < 100).sort((a, b) => a.c.score - b.c.score).slice(0, 5);
+    html += `<section aria-labelledby="t-fiches" class="mt-7"><h2 id="t-fiches" class="font-display font-extrabold text-2xl">Vos fiches</h2>`;
+    html += todo.length ? `<p class="mt-1 text-slate-700">Photo, description, prix : une fiche complète aide vos clients à choisir.</p><ul class="mt-3 space-y-3">${todo.map((x) => `
+      <li><a href="#/plante/${x.pl.id}" class="block rounded-2xl bg-white border-2 border-leaf-100 p-3 active:bg-leaf-50">
+        <div class="flex items-center justify-between gap-3"><span class="min-w-0 font-display font-bold text-xl leading-tight line-clamp-2 break-words">${esc(x.pl.titre)}</span><span class="shrink-0 font-display font-extrabold text-xl">${x.c.score} %</span></div>
+        <div class="mt-2 h-2.5 rounded-full bg-leaf-50 overflow-hidden" aria-hidden="true"><div class="h-full rounded-full ${x.c.score >= 70 ? 'bg-leaf-600' : 'bg-carrot'}" style="width:${x.c.score}%"></div></div>
+        <p class="mt-1.5 text-base text-slate-700">Il manque : ${x.c.manque.map(esc).join(', ')}.</p></a></li>`).join('')}</ul>`
+      : `<p class="mt-2 rounded-2xl bg-leaf-100 p-4 font-semibold text-lg">Bravo, toutes vos fiches en ligne sont complètes.</p>`;
+    html += `</section>`;
+    const out = online.filter((p) => !p.disponible);
+    if (out.length) html += `<section class="mt-7 rounded-2xl bg-sun-soft p-4"><p class="font-display font-extrabold text-xl">${out.length} ${plural(out.length, 'plante épuisée', 'plantes épuisées')}</p>
+      <p class="mt-1">Vos clients ne peuvent pas la commander tant qu’elle est épuisée. Remettez-la en stock dès que vous en avez.</p>
+      <a href="#/" class="mt-2 inline-flex items-center min-h-11 font-bold underline underline-offset-4">Voir mes plantes</a></section>`;
+    el.innerHTML = html;
+  }
+
+  async function viewDashboard() {
+    state.view = 'tableau';
+    app.innerHTML = `
+    ${banner()}
+    <header class="sticky top-0 z-30 bg-leaf-900 text-white px-3 pt-[max(.75rem,env(safe-area-inset-top))] pb-3 flex items-center gap-2">
+      <a href="#/" class="shrink-0 w-12 h-12 inline-flex items-center justify-center rounded-full border-2 border-white/40" aria-label="Retour à mes plantes">${ICON.back}</a>
+      <h1 class="font-display font-extrabold text-2xl truncate">Mon tableau de bord</h1>
+    </header>
+    <main id="tableau" class="px-4 pt-5 pb-24" aria-live="polite"></main>`;
+    paintDashboard();
+    if (navigator.onLine) {
+      try { state.tableau = await api('/tableau'); } catch (e) { if (e.code === 'session') return sessionLost(); }
+      if (state.view === 'tableau') paintDashboard();
+    }
   }
 
   /* ----- Formulaire (création et modification) ----- */
@@ -1179,6 +1258,7 @@
     const h = location.hash.replace(/^#\/?/, '');
     window.scrollTo(0, 0);
     if (h === 'nouvelle') return viewForm(null);
+    if (h === 'tableau') return viewDashboard();
     const m = h.match(/^plante\/([\w-]+)$/); if (m) return viewForm(/^\d+$/.test(m[1]) ? Number(m[1]) : m[1]);
     viewHome();
   }

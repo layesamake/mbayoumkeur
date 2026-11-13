@@ -15,7 +15,7 @@
 <link rel="preload" href="/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="/fonts/source-sans-3-400.woff2" as="font" type="font/woff2" crossorigin>
 <% if (typeof jsonLd !== 'undefined') { %><script type="application/ld+json"><%- jsonLd %></script><% } %>
 <link rel="stylesheet" href="/style.css"></head>
-<body class="bg-white text-slate-800 font-sans antialiased pb-20 md:pb-0" data-shops="<%= JSON.stringify(shops) %>" data-site="<%= siteName %>">
+<body class="bg-white text-slate-800 font-sans antialiased pb-20 md:pb-0" data-shops="<%= JSON.stringify(shops) %>" data-site="<%= siteName %>" data-stats="<%= statsUrl %>">
 <a href="#contenu" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:text-leaf-900 focus:font-semibold focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg">Aller au contenu</a>
 <header class="border-b sticky top-0 bg-white/95 backdrop-blur z-20">
   <div class="max-w-6xl mx-auto px-4 pt-3 pb-2 md:py-3 flex items-center gap-3">

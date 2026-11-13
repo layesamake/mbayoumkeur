@@ -14,7 +14,7 @@
 </ul>
 <% } %>
 </div>
-<div><h1 class="font-display font-extrabold text-3xl md:text-4xl text-leaf-900"><%= p.name %></h1><p class="text-leaf-600 mt-1"><%= p.category %></p>
+<div data-vue="<%= p.ref || '' %>"><h1 class="font-display font-extrabold text-3xl md:text-4xl text-leaf-900"><%= p.name %></h1><p class="text-leaf-600 mt-1"><%= p.category %></p>
 <% if (p.scientific) { %><p class="mt-1 italic text-slate-600"><%= p.scientific %></p><% } %>
 <% if (p.localName) { %><p class="mt-1 text-slate-700">Nom local (wolof) : <strong><%= p.localName %></strong></p><% } %>
 <% if (p.ref) { %><p class="text-xs text-slate-600 mt-1">Réf. <%= p.ref %></p><% } %>
